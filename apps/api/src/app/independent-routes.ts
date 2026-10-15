@@ -1,4 +1,8 @@
-import type { CustomerScope } from '@zerp/model'
+import type {
+  CustomerScope,
+  PurchaseInboundScopes,
+  ServiceContexts,
+} from '@zerp/model'
 import { auxOptionsInput } from './aux-contract.ts'
 import {
   roleOptionsInput,
@@ -268,6 +272,10 @@ export function createIndependentHandlers(
                 name: text(input, 'name'),
                 description: input.description as string | null,
                 permissionIds: strings(input, 'permissionIds'),
+                purchaseInboundScopes:
+                  input.purchaseInboundScopes as PurchaseInboundScopes,
+                serviceContexts: input.serviceContexts as
+                  ServiceContexts | undefined,
                 customerScope: input.customerScope as CustomerScope,
               },
               principal,
@@ -281,6 +289,10 @@ export function createIndependentHandlers(
                 name: text(input, 'name'),
                 description: input.description as string | null,
                 permissionIds: strings(input, 'permissionIds'),
+                purchaseInboundScopes:
+                  input.purchaseInboundScopes as PurchaseInboundScopes,
+                serviceContexts: input.serviceContexts as
+                  ServiceContexts | undefined,
                 customerScope: input.customerScope as CustomerScope,
                 revision: text(input, 'revision'),
               },

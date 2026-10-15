@@ -31,6 +31,9 @@ import {
   type EditDetail,
 } from './definition.ts'
 import EditForm from '../dynamic-fields/EditForm.vue'
+import PurchaseInboundScopeEditor from './PurchaseInboundScopeEditor.vue'
+import ServiceContextEditor from './ServiceContextEditor.vue'
+import type { PurchaseInboundScopes, ServiceContexts } from '@zerp/model'
 import { formatDecimal, compareDecimal } from '../dynamic-fields/decimal.ts'
 import { incomeExpenseDirectionOptions } from './aux-presentation.ts'
 import type { DirectFilters } from './definition.ts'
@@ -100,6 +103,8 @@ async function verify() {
   }
 }
 const error = ref<string | null>(null)
+const receiptScopesValid = ref(false)
+const serviceContextsValid = ref(false)
 const values = shallowRef<EditValues>({})
 const detail = shallowRef<EditDetail<EditValues> | null>(null)
 let completion: {
@@ -165,6 +170,8 @@ function finish(result?: 'changed') {
   loading.value = false
   values.value = {}
   detail.value = null
+  receiptScopesValid.value = false
+  serviceContextsValid.value = false
   error.value = null
   completion?.resolve(result)
   completion = null
@@ -323,6 +330,14 @@ async function save() {
     }
   }
   const version = editVersion
+  if (definition.resource === 'app/role' && !receiptScopesValid.value) {
+    error.value = '请选择每项采购入库操作的收货范围。'
+    return
+  }
+  if (definition.resource === 'app/role' && !serviceContextsValid.value) {
+    error.value = '请选择每项服务操作的合同或履约类型。'
+    return
+  }
   saving.value = true
   error.value = null
   try {
@@ -741,6 +756,32 @@ onBeforeUnmount(() => {
           v-model="values"
           :disabled="viewing || saving || loading || blocked"
           @submit="save"
+        />
+        <PurchaseInboundScopeEditor
+          v-if="open && !loading && definition.resource === 'app/role'"
+          :permission-ids="values.permissionIds as string[]"
+          :options="[
+            ...(detail?.options?.permissionIds ?? []),
+            ...(referenceOptions.permissionIds ?? []),
+          ]"
+          :model-value="values.purchaseInboundScopes as PurchaseInboundScopes"
+          :disabled="viewing || saving || loading || blocked"
+          @update:model-value="
+            values = { ...values, purchaseInboundScopes: $event }
+          "
+          @validity="receiptScopesValid = $event"
+        />
+        <ServiceContextEditor
+          v-if="open && !loading && definition.resource === 'app/role'"
+          :permission-ids="values.permissionIds as string[]"
+          :options="[
+            ...(detail?.options?.permissionIds ?? []),
+            ...(referenceOptions.permissionIds ?? []),
+          ]"
+          :model-value="values.serviceContexts as ServiceContexts"
+          :disabled="viewing || saving || loading || blocked"
+          @update:model-value="values = { ...values, serviceContexts: $event }"
+          @validity="serviceContextsValid = $event"
         />
       </v-card-text>
       <v-card-actions

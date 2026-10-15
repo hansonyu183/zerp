@@ -12,6 +12,7 @@ const props = defineProps<{
   fields: readonly DetailField[]
   value: Record<string, unknown>
   previous?: Record<string, unknown>
+  submission?: boolean
   source?: AttachmentSource
   previousSource?: AttachmentSource
 }>()
@@ -39,7 +40,7 @@ const customerPricingAfter = computed(
 <template>
   <template v-if="resource === 'wfl/process-definition'">
     <DetailsBlock
-      v-if="source?.source === 'submission'"
+      v-if="submission"
       :fields="[{ key: 'script', type: 'textarea', caption: 'Starlark 脚本' }]"
       :value="value"
       :previous="previous"

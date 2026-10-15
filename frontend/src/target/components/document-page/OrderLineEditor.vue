@@ -9,7 +9,7 @@ import { useOrderLineEditor } from './order-line-editor.ts'
 import { cloneDraft } from '../dynamic-fields/clone-draft.ts'
 const props = defineProps<{
   modelValue: OrderLine
-  entity: OrderDraft['entity']
+  entity: OrderDraft['entity'] | 'purchase-inbound'
   counterparty: OrderDraft['counterparty']
   defaultSurcharge: string | null
   disabled: boolean

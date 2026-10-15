@@ -22,7 +22,10 @@ async function main(): Promise<void> {
   const db = createDatabase(url)
   const validationPool = new pg.Pool({ connectionString: url })
   try {
-    const result = await new AccService(db).initializeInternalBook(usernames)
+    const result = await new AccService(db).initializeInternalBook(
+      usernames,
+      process.env.ACC_INITIAL_BOOK_START_MONTH ?? '2026-01',
+    )
     const administrator = await db
       .selectFrom('app_users as u')
       .innerJoin('app_user_roles as ur', 'ur.user_id', 'u.id')

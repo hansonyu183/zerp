@@ -18,6 +18,7 @@ export function permissionOption(
   return {
     id: permission.id,
     name: permissionTitle(permission),
+    snapshot: permission,
     disabled: permission.status !== 'ENABLED',
     unavailable: permission.status !== 'ENABLED',
   }
@@ -115,6 +116,7 @@ export async function loadEditReferencePage(
         query: {
           page: String(search.page),
           pageSize: '20',
+          ...(source.historical ? { historical: 'true' as const } : {}),
           ...(search.keyword ? { keyword: search.keyword } : {}),
         },
       })
@@ -122,13 +124,16 @@ export async function loadEditReferencePage(
         ...page,
         items: page.items.map((item) => ({
           id: `${item.sourceDocumentId}:${item.sourceLineId}`,
-          name: `${item.sourceDocumentNo} · ${item.product.code} · ${item.product.name} · 可用 ${item.availableBaseQuantity}`,
+          name: `${item.sourceDocumentNo} · ${item.product.code} · ${item.product.name} · ${source.historical ? '历史来源数量' : '可用'} ${item.availableBaseQuantity}`,
           snapshot: item,
         })),
       }
     }
     if (source.kind === 'vou-reference') {
-      const page = await api.queryTargetVouOptions(source.entity, query)
+      const page = await api.queryTargetVouOptions(source.entity, {
+        ...query,
+        ...(source.prepayment ? { prepayment: 'true' as const } : {}),
+      })
       return {
         ...page,
         items: page.items.map((item) => ({

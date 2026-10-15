@@ -1,3 +1,4 @@
+import { archiveAttachmentErrorPresentation } from '@zerp/model'
 import { TargetApiError } from '../../api.ts'
 
 type Blocker = {
@@ -35,6 +36,7 @@ export function describeBobEnablementFailure(cause: unknown): string | null {
 }
 
 const archiveErrorLabels = {
+  ...archiveAttachmentErrorPresentation,
   forbidden: '当前账号没有执行此操作的权限。',
   unauthenticated: '会话已失效，请重新登录。',
   validation_failed: '输入格式不正确，请检查必填项。',
@@ -50,15 +52,11 @@ const archiveErrorLabels = {
   archive_conflict: '档案状态已变化，请重新读取。',
   archive_idempotency_conflict: '此提交标识已被其他内容使用。',
   archive_reference_unavailable: '所选引用当前不可用，请重新选择。',
-  customer_attachment_not_found: '附件不存在或不属于此版本。',
 
   customer_invalid_data: '客户资料不符合规则，请检查业务属性。',
   customer_reference_unavailable:
     '物流对账分组、默认仓库、经营主体或业务归属当前不可用，请检查选择。',
   customer_reference_stale: '销售合作方已有新版本，请重新选择。',
-  customer_attachment_invalid_content: '附件内容与文件类型不一致。',
-  customer_attachment_staging_conflict: '附件暂存请求冲突，请重新添加附件。',
-  customer_attachment_staging_invalid: '附件暂存已失效，请重新添加附件。',
   product_invalid_data: '产品资料不完整或数量、配方不符合规则。',
   product_reference_unavailable: '所选产品资料或原料当前不可用，请检查选择。',
   product_reference_stale: '原料已有新版本，请重新打开表单确认原料。',

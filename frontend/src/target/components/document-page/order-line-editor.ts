@@ -20,7 +20,10 @@ import {
   type OrderLine,
 } from './order-data.ts'
 export function useOrderLineEditor(options: {
-  context: () => Pick<OrderDraft, 'entity' | 'counterparty'>
+  context: () => {
+    entity: OrderDraft['entity'] | 'purchase-inbound'
+    counterparty: OrderDraft['counterparty']
+  }
   lines: () => readonly OrderLine[]
   update: (id: string, value: Partial<OrderLine>) => void
   disabled: () => boolean

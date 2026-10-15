@@ -72,6 +72,8 @@ CREATE TABLE app_roles (
 CREATE TABLE app_role_permissions (
     role_id varchar(26) NOT NULL REFERENCES app_roles(id) ON DELETE CASCADE,
     permission_id varchar(26) NOT NULL REFERENCES app_permissions(id) ON DELETE RESTRICT,
+    purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE', 'INDEPENDENT_PRIOR', 'ALL')),
+    service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY['OTHER_UNIT','SUPPLIER','SALES_PARTNER','PRIOR_AA','PRIOR_AD','CONTRACT','PRIOR_AB','PRIOR_AE','PRIOR_AH','CUSTOMER','PRIOR_BB','PRIOR_BA','CUSTOMER_CONTRACT']::text[]),
     created_at timestamptz NOT NULL DEFAULT now(),
     created_by varchar(26),
     PRIMARY KEY (role_id, permission_id)
@@ -302,6 +304,7 @@ CREATE TABLE dcl_supplier_versions (
     contact_name varchar(100),
     contact_phone varchar(32),
     address varchar(500),
+    attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
     remark varchar(1000),
     default_operating_entity_reference jsonb,
     settlement_method_snapshot jsonb,
@@ -327,6 +330,7 @@ CREATE TABLE dcl_other_unit_versions (
     contact_name varchar(100),
     contact_phone varchar(32),
     address varchar(500),
+    attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
     remark varchar(1000),
     default_operating_entity_reference jsonb,
     settlement_method_snapshot jsonb
@@ -371,6 +375,7 @@ CREATE TABLE dcl_sales_partner_versions (
     contact_name varchar(100),
     contact_phone varchar(32),
     address varchar(500),
+    attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
     remark varchar(1000),
     default_operating_entity_reference jsonb
 );
@@ -399,6 +404,7 @@ CREATE TABLE dcl_product_versions (
     default_packaging_snapshot jsonb,
     recyclable boolean NOT NULL DEFAULT false,
     fixed_formula jsonb,
+    attachments jsonb NOT NULL DEFAULT '[]'::jsonb CHECK (jsonb_typeof(attachments) = 'array'),
     remark varchar(1000)
 );
 
@@ -598,13 +604,15 @@ CREATE TABLE archive_idempotency (
     PRIMARY KEY (entity, idempotency_key)
 );
 
-CREATE TABLE dcl_customer_attachment_staging (
+CREATE TABLE dcl_archive_attachment_staging (
     id varchar(26) PRIMARY KEY,
+    entity varchar(16) NOT NULL CHECK (entity IN ('customer','product','supplier','other-unit','sales-partner')),
+    subject_id varchar(26) NOT NULL,
     file_id varchar(26) NOT NULL,
     owner_user_id varchar(26) NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
     file_name varchar(255) NOT NULL,
     mime_type varchar(128) NOT NULL,
-    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 0 AND 20971520),
     digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
     storage_key varchar(512) NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
@@ -612,12 +620,12 @@ CREATE TABLE dcl_customer_attachment_staging (
     CHECK (expires_at > created_at)
 );
 
-CREATE TABLE dcl_customer_attachments (
+CREATE TABLE dcl_archive_attachments (
     approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
     file_id varchar(26) NOT NULL,
     file_name varchar(255) NOT NULL,
     mime_type varchar(128) NOT NULL,
-    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 0 AND 20971520),
     digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
     storage_key varchar(512) NOT NULL,
     created_at timestamptz NOT NULL,
@@ -745,12 +753,13 @@ CREATE TABLE vou_prior_facts (
     approval_entry_id varchar(26) PRIMARY KEY REFERENCES approval_entries(id) ON DELETE CASCADE,
     source_instance_id varchar(128) NOT NULL,
     source_schema varchar(64) NOT NULL,
-    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AF')),
+    source_document_type varchar(2) NOT NULL CHECK (source_document_type IN ('AA', 'AD', 'AB', 'AE', 'AF', 'AH', 'BB', 'BA')),
+    source_component varchar(16) NOT NULL CHECK (source_component IN ('PROCUREMENT', 'SERVICE', 'SALE_ORDER', 'SALE_OUTBOUND', 'SALE_SIGNOFF')),
     source_document_key varchar(128) NOT NULL,
     source_document_no varchar(200) NOT NULL,
     captured_at timestamptz NOT NULL,
     snapshot_digest char(64) NOT NULL,
-    UNIQUE (source_instance_id, source_schema, source_document_type, source_document_key)
+    UNIQUE (source_instance_id, source_schema, source_document_type, source_document_key, source_component)
 );
 
 
@@ -1259,7 +1268,7 @@ ALTER TABLE vou_bill_issue_details ADD COLUMN remark text, ADD COLUMN interest_m
 ALTER TABLE vou_bill_discount_details ADD COLUMN remark text, ADD COLUMN interest_mode varchar(32), ADD COLUMN with_recourse boolean;
 ALTER TABLE vou_bill_maturity_details ADD COLUMN remark text, ADD COLUMN maturity_type varchar(16);
 ALTER TABLE vou_intermediary_calculation_details ADD COLUMN remark text, ADD COLUMN period_start date, ADD COLUMN period_end date, ADD COLUMN source_hash varchar(64), ADD COLUMN script_id varchar(128), ADD COLUMN script_revision integer, ADD COLUMN script_name varchar(200), ADD COLUMN script_source text, ADD COLUMN script_hash varchar(64);
-ALTER TABLE vou_service_contract_details ADD COLUMN remark text, ADD COLUMN capabilities varchar(32)[], ADD COLUMN applicable_from date, ADD COLUMN applicable_to date, ADD COLUMN terms text;
+ALTER TABLE vou_service_contract_details ADD COLUMN remark text, ADD COLUMN capabilities varchar(32)[], ADD COLUMN applicable_from date, ADD COLUMN applicable_to date, ADD COLUMN terms text, ADD COLUMN requires_prepayment boolean;
 ALTER TABLE vou_service_acceptance_details ADD COLUMN remark text, ADD COLUMN contract_document_id varchar(26), ADD COLUMN service_date date, ADD COLUMN acceptance_date date, ADD COLUMN settlement_direction varchar(16), ADD COLUMN fulfillment_fact text, ADD COLUMN acceptance_fact text;
 
 CREATE TABLE vou_reference_snapshots (
@@ -1284,6 +1293,44 @@ CREATE TABLE vou_price_line_snapshots (
     unit_price_minor bigint NOT NULL,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
+);
+
+CREATE TABLE vou_service_line_snapshots (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_no integer NOT NULL CHECK (line_no BETWEEN 1 AND 200),
+    line_id varchar(26) NOT NULL CHECK (line_id ~ '^[0-9A-HJKMNP-TV-Z]{26}$'),
+    service_name varchar(200) NOT NULL,
+    service_code varchar(64),
+    entered_quantity_micros bigint NOT NULL CHECK (entered_quantity_micros >= 0),
+    entered_unit_id varchar(26) NOT NULL,
+    entered_unit_code varchar(64) NOT NULL,
+    entered_unit_name varchar(200) NOT NULL,
+    entered_unit_fixed_factor text,
+    base_quantity_micros bigint NOT NULL CHECK (base_quantity_micros >= 0),
+    base_unit_id varchar(26) NOT NULL,
+    base_unit_code varchar(64) NOT NULL,
+    base_unit_name varchar(200) NOT NULL,
+    base_unit_fixed_factor text,
+    quoted_unit_price_micros bigint,
+    agreed_amount_minor bigint NOT NULL CHECK (agreed_amount_minor >= 0),
+    contract_line_id varchar(26),
+    source_line_key varchar(128),
+    remark text,
+    PRIMARY KEY (approval_entry_id, line_no),
+    UNIQUE (approval_entry_id, line_id),
+    UNIQUE (approval_entry_id, source_line_key)
+);
+
+CREATE TABLE vou_prior_service_line_origins (
+    approval_entry_id varchar(26) NOT NULL,
+    line_id varchar(26) NOT NULL,
+    source_document_type varchar(64) NOT NULL,
+    source_document_key varchar(128) NOT NULL,
+    source_line_key varchar(128) NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_id),
+    FOREIGN KEY (approval_entry_id, line_id)
+        REFERENCES vou_service_line_snapshots(approval_entry_id, line_id)
+        ON DELETE CASCADE
 );
 
 CREATE TABLE vou_product_line_snapshots (
@@ -1362,6 +1409,7 @@ CREATE TABLE vou_source_line_snapshots (
     source_line_id varchar(128) NOT NULL,
     base_quantity_micros bigint NOT NULL,
     prior_amount_minor bigint CHECK (prior_amount_minor >= 0),
+    prior_stock_lines jsonb,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );
@@ -1372,6 +1420,8 @@ CREATE TABLE vou_signoff_line_snapshots (
     source_line_id varchar(128) NOT NULL,
     signed_quantity_micros bigint NOT NULL,
     rejected_quantity_micros bigint NOT NULL,
+    prior_lost_quantity_micros bigint CHECK (prior_lost_quantity_micros >= 0),
+    prior_amount_minor bigint,
     remark text,
     PRIMARY KEY (approval_entry_id, line_no)
 );
@@ -1627,8 +1677,8 @@ CREATE TABLE vou_attachment_staging (
     file_id varchar(26) NOT NULL,
     owner_user_id varchar(26) NOT NULL REFERENCES app_users(id) ON DELETE CASCADE,
     file_name varchar(255) NOT NULL,
-    mime_type varchar(128) NOT NULL CHECK (mime_type IN ('application/pdf', 'image/jpeg', 'image/png')),
-    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    mime_type varchar(128) NOT NULL CHECK (mime_type IN ('application/pdf', 'image/jpeg', 'image/png', 'application/octet-stream')),
+    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 0 AND 20971520),
     digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
     storage_key varchar(512) NOT NULL UNIQUE,
     created_at timestamptz NOT NULL,
@@ -1643,7 +1693,7 @@ CREATE TABLE vou_attachments (
     staging_id varchar(26) NOT NULL,
     file_name varchar(255) NOT NULL,
     mime_type varchar(128) NOT NULL,
-    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 1 AND 10485760),
+    size_bytes integer NOT NULL CHECK (size_bytes BETWEEN 0 AND 20971520),
     digest varchar(64) NOT NULL CHECK (digest ~ '^[0-9a-f]{64}$'),
     storage_key varchar(512) NOT NULL,
     created_at timestamptz NOT NULL,
@@ -1989,3 +2039,13 @@ CREATE TABLE aux_measurement_unit_conversion_evidence (
 );
 
 ALTER TABLE app_users ADD CONSTRAINT app_users_employee_fk FOREIGN KEY (employee_id) REFERENCES aux_objects(id);
+
+CREATE TABLE vou_prior_receipt_line_origins (
+    approval_entry_id varchar(26) NOT NULL REFERENCES approval_entries(id) ON DELETE CASCADE,
+    line_id varchar(26) NOT NULL,
+    source_document_type varchar(64) NOT NULL,
+    source_document_key varchar(128) NOT NULL,
+    source_line_key varchar(128) NOT NULL,
+    PRIMARY KEY (approval_entry_id, line_id),
+    FOREIGN KEY (approval_entry_id, line_id) REFERENCES vou_product_line_snapshots(approval_entry_id, line_id) ON DELETE CASCADE
+);

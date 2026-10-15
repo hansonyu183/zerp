@@ -6,6 +6,8 @@ import type { CustomerSnapshot } from './customer-data.ts'
 import type { ProductSnapshot } from './product-data.ts'
 import type { WflData } from './wfl-data.ts'
 import type { EditField, EditValues } from '../dynamic-fields/edit-fields.ts'
+import AttachmentBlock from '../attachments/AttachmentBlock.vue'
+import type { AttachmentMetadata } from '@zerp/model'
 import EditForm from '../dynamic-fields/EditForm.vue'
 import WflScriptBlock from './WflScriptBlock.vue'
 import ProductDetailsEditor from './ProductDetailsEditor.vue'
@@ -113,5 +115,27 @@ const identityEditor = computed(() => {
     @update:model-value="
       patch({ taxInformation: Array.isArray($event) ? $event : [] })
     "
+  />
+  <AttachmentBlock
+    v-if="
+      [
+        'bob/product',
+        'dcl/product',
+        'bob/supplier',
+        'dcl/supplier',
+        'bob/other-unit',
+        'dcl/other-unit',
+        'bob/sales-partner',
+        'dcl/sales-partner',
+      ].includes(resource)
+    "
+    caption="原件"
+    mode="edit"
+    :model-value="
+      (modelValue.attachments as AttachmentMetadata[] | undefined) ?? []
+    "
+    :disabled="disabled"
+    @update:model-value="patch({ attachments: $event })"
+    @pending="emit('pending', $event)"
   />
 </template>

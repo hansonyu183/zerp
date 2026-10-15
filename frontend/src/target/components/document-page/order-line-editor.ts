@@ -20,7 +20,10 @@ import {
   type OrderLine,
 } from './order-data.ts'
 export function useOrderLineEditor(options: {
-  context: () => Pick<OrderDraft, 'entity' | 'counterparty'>
+  context: () => {
+    entity: OrderDraft['entity'] | 'purchase-inbound'
+    counterparty: OrderDraft['counterparty']
+  }
   lines: () => readonly OrderLine[]
   update: (id: string, value: Partial<OrderLine>) => void
   disabled: () => boolean
@@ -283,9 +286,17 @@ export function useOrderLineEditor(options: {
       {
         key: 'unitPrice',
         type: 'decimal',
-        scale: 2,
-        caption: '基础单价',
+        scale: line.agreedAmount?.trim() ? 6 : 2,
+        caption: line.agreedAmount?.trim()
+          ? '原报价（不重算金额）'
+          : '基础单价',
         required: true,
+      },
+      {
+        key: 'agreedAmount',
+        type: 'decimal',
+        scale: 2,
+        caption: '最终约定金额（可选）',
       },
       ...(options.context().entity === 'sale-order'
         ? [

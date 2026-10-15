@@ -1,7 +1,32 @@
-import { vouEntityPresentation } from '@zerp/model'
+import {
+  vouEntityPresentation,
+  vouPriorSourceDocumentPresentation,
+} from '@zerp/model'
 
 // Shared captions for immutable voucher facts and ACC mapping field selection.
 export const snapshotCaptions: Readonly<Record<string, string>> = {
+  priorFact: '此前事实',
+  dispatchedBaseQuantity: '此前出库量',
+  lostBaseQuantity: '已证损耗量',
+  unresolvedBaseQuantity: '未证去向余量',
+  inTransitBaseQuantity: '已证在途量',
+  serviceLines: '服务明细',
+  serviceName: '服务内容',
+  serviceCode: '服务编码',
+  baseUnit: '基本单位',
+  contractLineId: '合同原行标识',
+  requiresPrepayment: '履约前须预付',
+  priorLineOrigins: '原单据行关联',
+  sourceLineKey: '原行键',
+  sourceClosed: '源单已关闭',
+  priorAmount: '此前实际行金额',
+  priorStockLines: '此前实际实物组成',
+  sourceInstanceId: '来源实例',
+  sourceSchema: '来源库',
+  sourceDocumentType: '来源单据类型',
+  sourceDocumentKey: '原单据键',
+  capturedAt: '封存截止',
+  snapshotDigest: '来源快照摘要',
   primarySalesAttribution: '客户主要业务归属',
   countResult: '批准时盘点结果',
   bookQuantity: '账面数量',
@@ -69,7 +94,8 @@ export const snapshotCaptions: Readonly<Record<string, string>> = {
   objectId: '对象标识',
   approvalEntryId: '采用版本标识',
   selectionOrigin: '采用来源',
-  unitPrice: '单价',
+  unitPrice: '单价／原报价',
+  agreedAmount: '最终约定金额',
   customer: '客户',
   operatingEntity: '经营主体',
   salesperson: '销售员',
@@ -279,6 +305,12 @@ const category = {
 export const snapshotEnums: Readonly<
   Record<string, Readonly<Record<string, string>>>
 > = {
+  sourceDocumentType: Object.fromEntries(
+    Object.entries(vouPriorSourceDocumentPresentation).map(([key, item]) => [
+      key,
+      item.label,
+    ]),
+  ),
   identityKind: { PERSON: '自然人', ORGANIZATION: '组织' },
   kind: { INTERNAL: '内部承运', EXTERNAL: '外部承运' },
   parentEntity: Object.fromEntries(

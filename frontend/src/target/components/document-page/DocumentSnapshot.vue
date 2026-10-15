@@ -7,6 +7,24 @@ import AttachmentBlock from '../attachments/AttachmentBlock.vue'
 defineProps<{ document: VouDetail }>()
 </script>
 <template>
+  <section
+    v-if="'priorFact' in document.payload && document.payload.priorFact"
+    data-testid="vou-prior-fact-snapshot"
+  >
+    <h3>此前事实承接</h3>
+    <p>已保存原单据事实；批准不会再次产生库存、会计或流程效果。</p>
+    <SnapshotValue :value="document.payload.priorFact" />
+  </section>
+  <section
+    v-if="'priorSaleDisposition' in document && document.priorSaleDisposition"
+    data-testid="vou-prior-sale-disposition"
+  >
+    <h3>封存截止的销售履行</h3>
+    <p>
+      未证明的损耗和在途保持未知；这里保留此前事实，不代表迁入后的当前剩余量。
+    </p>
+    <SnapshotValue :value="document.priorSaleDisposition" />
+  </section>
   <OpeningSnapshot v-if="document.entity === 'opening'" :document="document" />
   <OrderSnapshot
     v-else-if="

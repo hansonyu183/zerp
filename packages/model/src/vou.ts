@@ -14,6 +14,7 @@ import {
   type ApprovalTransitionPlan,
 } from './approval.ts'
 import type { SubmitAction } from './submission.ts'
+import { isInputQuantity } from './quantity.ts'
 
 export const vouEntities = [
   'sale-invoice',
@@ -218,7 +219,7 @@ export interface VouPaymentMethodSelectionInput extends VouPaymentMethodSnapshot
 export interface VouAttachmentMetadata {
   id: string
   fileName: string
-  contentType: 'application/pdf' | 'image/jpeg' | 'image/png'
+  contentType: import('./attachments.ts').AttachmentMimeType
   sizeBytes: number
   sha256: string
   stagingId: string
@@ -267,6 +268,19 @@ export interface VouProductLineInput extends VouProductQuantitySnapshotInput {
   containerType?: string | null
   quantityPerContainer?: string | null
   formula?: VouFormulaInput | null
+}
+
+/** Contract or fulfilled service content, without a product/archive identity. */
+export interface VouServiceLineInput extends VouProductQuantitySnapshotInput {
+  lineId: string
+  serviceName: string
+  serviceCode?: string
+  unitPrice?: string
+  agreedAmount: string
+  baseUnit: VouMeasurementUnitSnapshotInput
+  contractLineId?: string
+  sourceLineKey?: string
+  remark?: string
 }
 
 export interface VouPriceLineInput {
@@ -394,28 +408,77 @@ export interface VouBillCashLineInput {
 }
 
 export const vouPriorDocumentTypes = {
+  'sale-order': ['BB'],
+  'sale-outbound': ['BB', 'BA'],
+  'sale-signoff': ['BA'],
   'purchase-order': ['AA', 'AD'],
-  'purchase-inbound': ['AB'],
+  'purchase-inbound': ['AB', 'AH'],
   'purchase-return': ['AF'],
+  'service-contract': ['AA', 'AD', 'BB'],
+  'service-acceptance': ['AB', 'AE', 'AH', 'BA'],
 } as const
 
 export const vouPriorSourceDocumentPresentation = {
+  BB: { label: '销售配货' },
+  BA: { label: '销售签收' },
   AA: { label: '采购订单' },
-  AD: { label: '采购订单（其他）' },
+  AD: { label: '预付采购订单' },
   AB: { label: '采购入库' },
+  AH: { label: '独立采购收货' },
   AF: { label: '采购退货' },
+  AE: { label: '其他采购' },
 } as const
 
+export const vouPriorLineOriginDocumentPresentation = {
+  ...vouPriorSourceDocumentPresentation,
+  BB: { label: '销售订单' },
+} as const
+
+/** An original external relationship, distinct from a native procurement parent. */
+export interface VouPriorLineOrigin {
+  lineId: string
+  sourceDocumentType: string
+  sourceDocumentKey: string
+  sourceLineKey: string
+}
+
 /** A real pre-cutoff document adopted without replaying its business effects. */
+export const vouPriorCutoffPattern =
+  /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?Z$/
+/** Exact UTC instant at PostgreSQL/MySQL microsecond precision. */
+export function canonicalVouPriorCutoff(value: string): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const match = vouPriorCutoffPattern.exec(value)
+  if (!match) return undefined
+  const calendar = new Date(value)
+  if (
+    !Number.isFinite(calendar.getTime()) ||
+    calendar.toISOString().slice(0, 19) !== match[1]
+  )
+    return undefined
+  return `${match[1]}.${(match[2] ?? '').padEnd(6, '0')}Z`
+}
+
 export interface VouPriorFact {
   sourceClosed: boolean
   sourceInstanceId: string
   sourceSchema: string
-  sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AF'
+  sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AE' | 'AF' | 'AH' | 'BB' | 'BA'
   sourceDocumentKey: string
   sourceDocumentNo: string
   capturedAt: string
   snapshotDigest: string
+}
+
+/** Pre-cutoff customer quantities; unresolved disposition remains separate from proven transit. */
+export interface VouPriorSaleDisposition {
+  sourceLineId: string
+  dispatchedBaseQuantity: string
+  signedBaseQuantity: string
+  rejectedBaseQuantity: string
+  lostBaseQuantity: string | null
+  unresolvedBaseQuantity: string
+  inTransitBaseQuantity: string | null
 }
 
 export interface VouPayloadBase {
@@ -442,6 +505,11 @@ type SourcePayload = VouPayloadBase & {
   sourceLines: readonly {
     sourceLineId: string
     priorAmount?: string
+    priorStockLines?: readonly {
+      sourceLineKey: string
+      product: VouObjectReferenceInput
+      quantity: VouProductQuantitySnapshotInput
+    }[]
     baseQuantity: string
     remark?: string
   }[]
@@ -584,11 +652,21 @@ export interface VouInvoiceFacts extends VouPayloadBase {
   taxInformation: TaxInformationSnapshot
   invoiceLines: readonly VouInvoiceLine[]
 }
+export const vouServiceCounterpartyTypes = [
+  'customer',
+  'supplier',
+  'other-unit',
+  'sales-partner',
+] as const
+export type VouServiceCounterpartyType =
+  (typeof vouServiceCounterpartyTypes)[number]
+
 export interface VouPayloadShapes {
   'sale-invoice': VouInvoiceFacts & { customer: VouVersionedReferenceInput }
   'purchase-invoice': VouInvoiceFacts & { supplier: VouVersionedReferenceInput }
   'sale-pricing': PricePayload
   'sale-order': ProductPayload & {
+    priorFact?: VouPriorFact
     customer: VouVersionedReferenceInput
     operatingEntity: VouAuxCurrentReferenceInput
     salesperson?: VouAuxCurrentReferenceInput
@@ -597,12 +675,13 @@ export interface VouPayloadShapes {
     creditOverrideReason?: string
     specialApproval?: boolean
   }
-  'sale-outbound': SourcePayload
+  'sale-outbound': SourcePayload & { priorFact?: VouPriorFact }
   'sale-delivery': SourcePayload & {
     carrier?: VouVersionedReferenceInput
     vehicle?: VouAuxCurrentReferenceInput
   }
   'sale-signoff': VouPayloadBase & {
+    priorFact?: VouPriorFact
     customer: VouVersionedReferenceInput
     expectedSolventContainers: number
     expectedResinContainers: number
@@ -613,6 +692,8 @@ export interface VouPayloadShapes {
       sourceLineId: string
       signedBaseQuantity: string
       rejectedBaseQuantity: string
+      lostBaseQuantity?: string
+      priorAmount?: string
       remark?: string
     }[]
   }
@@ -633,7 +714,13 @@ export interface VouPayloadShapes {
     purchaser?: VouAuxCurrentReferenceInput
     warehouse: VouAuxCurrentReferenceInput
   }
-  'purchase-inbound': SourcePayload & {
+  'purchase-inbound': (
+    | SourcePayload
+    | (ProductPayload & {
+        priorFact: VouPriorFact
+        priorLineOrigins: readonly VouPriorLineOrigin[]
+      })
+  ) & {
     priorFact?: VouPriorFact
     supplier: VouVersionedReferenceInput
     warehouse: VouAuxCurrentReferenceInput
@@ -765,22 +852,31 @@ export interface VouPayloadShapes {
     intermediaryCalculation: VouIntermediaryCalculationInput
   }
   'service-contract': VouPayloadBase & {
+    operatingEntity?: VouAuxCurrentReferenceInput
+    priorFact?: VouPriorFact
+    serviceLines?: readonly VouServiceLineInput[]
     counterparty: VouVersionedReferenceInput
-    counterpartyType: 'other-unit' | 'sales-partner'
+    counterpartyType: VouServiceCounterpartyType
     employee: VouAuxCurrentReferenceInput
     serviceContract: {
       capabilities?: readonly ('EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER')[]
       applicableFrom?: string
       applicableTo?: string
       terms?: string
+      requiresPrepayment?: boolean
     }
   }
   'service-acceptance': VouPayloadBase & {
+    operatingEntity?: VouAuxCurrentReferenceInput
+    priorFact?: VouPriorFact
+    serviceLines?: readonly VouServiceLineInput[]
+    priorLineOrigins?: readonly VouPriorLineOrigin[]
     amount: string
     counterparty?: VouVersionedReferenceInput
+    counterpartyType?: VouServiceCounterpartyType
     employee: VouAuxCurrentReferenceInput
     serviceAcceptance: {
-      contractDocumentId: string
+      contractDocumentId?: string
       serviceDate: string
       acceptanceDate: string
       settlementDirection: 'PAYABLE' | 'RECEIVABLE'
@@ -796,6 +892,29 @@ export type VouPayloadByEntity = {
 
 export type VouPayloadFor<Entity extends VouEntity> = VouPayloadShapes[Entity]
 export type VouPayload = VouPayloadByEntity['payload']
+export const vouPriorSaleContinuationTargets = {
+  'sale-order': 'sale-outbound',
+  'sale-outbound': 'sale-delivery',
+  'sale-delivery': 'sale-signoff',
+} as const
+export type VouPriorSaleContinuationEntity =
+  'sale-outbound' | 'sale-delivery' | 'sale-signoff'
+export type VouPriorSaleContinuation = {
+  [Entity in VouPriorSaleContinuationEntity]: {
+    entity: Entity
+    sourceEntity: 'sale-order' | 'sale-outbound' | 'sale-delivery'
+    sourceDocumentId: string
+    sourceDocumentNo: string
+    customerName: string
+    lines: readonly {
+      sourceLineId: string
+      productCode: string
+      productName: string
+      availableBaseQuantity: string
+    }[]
+    payload: VouPayloadFor<Entity>
+  }
+}[VouPriorSaleContinuationEntity]
 
 interface VouSubmissionCommandBase {
   action: SubmitAction
@@ -816,6 +935,7 @@ export interface VouSubmissionFacts {
   referencesValid: boolean
   periodOpen: boolean
   trustedSystemActor: boolean
+  priorSaleContinuation?: boolean
 }
 
 export type VouSubmissionErrorKey =
@@ -1026,8 +1146,6 @@ function versionedReferenceCandidateEntity(
   path: string,
   payload: VouPayload,
 ): VouReferenceCandidateEntity {
-  if (field === 'counterparty' && entity === 'service-acceptance')
-    return 'other-unit'
   if (field === 'counterparty') {
     const counterpartyType = (payload as unknown as Record<string, unknown>)[
       'counterpartyType'
@@ -1083,6 +1201,28 @@ function isPaymentMethodSelection(
         key === 'name' ||
         key === 'defaultSalesSurcharge' ||
         key === 'selectionOrigin',
+    )
+  )
+}
+
+function isMeasurementUnitSnapshot(
+  value: unknown,
+): value is VouMeasurementUnitSnapshotInput {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const unit = value as Record<string, unknown>
+  return (
+    typeof unit.objectId === 'string' &&
+    /^[0-9A-HJKMNP-TV-Z]{26}$/.test(unit.objectId) &&
+    typeof unit.code === 'string' &&
+    unit.code.trim().length > 0 &&
+    typeof unit.name === 'string' &&
+    unit.name.trim().length > 0 &&
+    (unit.fixedFactor === null ||
+      (typeof unit.fixedFactor === 'string' &&
+        /^(?:0|[1-9]\d*)(?:\.\d{1,18})?$/.test(unit.fixedFactor) &&
+        /[1-9]/.test(unit.fixedFactor))) &&
+    Object.keys(unit).every((key) =>
+      ['objectId', 'code', 'name', 'fixedFactor'].includes(key),
     )
   )
 }
@@ -1190,8 +1330,7 @@ function canonicalPayload<Entity extends VouEntity>(
         prior.sourceDocumentNo,
       ].every(text) ||
       !/^[0-9a-f]{64}$/.test(prior.snapshotDigest) ||
-      !/^\d{4}-\d{2}-\d{2}T.*Z$/.test(prior.capturedAt) ||
-      !Number.isFinite(Date.parse(prior.capturedAt)) ||
+      canonicalVouPriorCutoff(prior.capturedAt) === undefined ||
       !Object.keys(prior).every((key) =>
         [
           'sourceClosed',
@@ -1215,7 +1354,10 @@ function canonicalPayload<Entity extends VouEntity>(
       'sourceLines' in value
         ? value.sourceLines
         : (value as VouPayloadShapes['purchase-return']).returnLines
-    const historical = 'priorFact' in value && value.priorFact !== undefined
+    const historical =
+      (entity === 'purchase-inbound' || entity === 'purchase-return') &&
+      'priorFact' in value &&
+      value.priorFact !== undefined
     if (
       lines.some((line) =>
         historical
@@ -1225,6 +1367,269 @@ function canonicalPayload<Entity extends VouEntity>(
       )
     )
       return undefined
+  }
+  if (
+    'sourceLines' in value &&
+    value.sourceLines.some((line) => line.priorStockLines !== undefined)
+  ) {
+    if (
+      entity !== 'sale-outbound' ||
+      !('priorFact' in value) ||
+      !value.priorFact ||
+      value.sourceLines.some(
+        (line) =>
+          line.priorStockLines !== undefined &&
+          (!line.priorStockLines.length ||
+            new Set(line.priorStockLines.map((row) => row.sourceLineKey))
+              .size !== line.priorStockLines.length),
+      )
+    )
+      return undefined
+  }
+  if (entity === 'sale-signoff') {
+    const signoff = value as VouPayloadShapes['sale-signoff']
+    if (
+      signoff.signoffLines.some(
+        (line) =>
+          (signoff.priorFact
+            ? line.priorAmount === undefined ||
+              !/^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.priorAmount)
+            : line.priorAmount !== undefined) ||
+          (line.lostBaseQuantity !== undefined &&
+            (!signoff.priorFact ||
+              !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.lostBaseQuantity))),
+      )
+    )
+      return undefined
+  }
+  if (entity === 'purchase-inbound') {
+    const receipt = value as VouPayloadShapes['purchase-inbound']
+    if ('sourceLines' in receipt === 'productLines' in receipt) return undefined
+    if ('productLines' in receipt) {
+      if (
+        !Array.isArray(receipt.productLines) ||
+        !receipt.priorFact ||
+        receipt.parentEntity ||
+        receipt.parentDocumentId ||
+        !Array.isArray(receipt.priorLineOrigins) ||
+        receipt.priorLineOrigins.length !== receipt.productLines.length ||
+        new Set(receipt.productLines.map((line) => line.lineId)).size !==
+          receipt.productLines.length ||
+        new Set(receipt.priorLineOrigins.map((line) => line.lineId)).size !==
+          receipt.productLines.length ||
+        receipt.priorLineOrigins.some(
+          (origin) =>
+            !receipt.productLines.some(
+              (line) => line.lineId === origin.lineId,
+            ) ||
+            ![
+              origin.sourceDocumentType,
+              origin.sourceDocumentKey,
+              origin.sourceLineKey,
+            ].every(text) ||
+            !Object.keys(origin).every((key) =>
+              [
+                'lineId',
+                'sourceDocumentType',
+                'sourceDocumentKey',
+                'sourceLineKey',
+              ].includes(key),
+            ),
+        ) ||
+        receipt.productLines.some(
+          (line) =>
+            !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.baseQuantity) ||
+            !/[1-9]/.test(line.baseQuantity) ||
+            !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.enteredQuantity) ||
+            !/[1-9]/.test(line.enteredQuantity) ||
+            line.agreedAmount === undefined ||
+            !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.agreedAmount) ||
+            line.formula !== undefined ||
+            line.settlementSurcharge !== undefined ||
+            line.purchaseUnitPrice !== undefined ||
+            line.deliverySpecificationType !== undefined ||
+            line.containerType !== undefined ||
+            line.quantityPerContainer !== undefined,
+        )
+      )
+        return undefined
+    } else if (
+      'priorLineOrigins' in receipt ||
+      receipt.priorFact?.sourceDocumentType === 'AH'
+    )
+      return undefined
+  }
+  if (entity === 'service-contract' || entity === 'service-acceptance') {
+    const service = value as VouPayloadShapes[
+      'service-contract' | 'service-acceptance']
+    if (
+      service.counterpartyType !== undefined &&
+      !vouServiceCounterpartyTypes.includes(service.counterpartyType)
+    )
+      return undefined
+    if (
+      entity === 'service-contract'
+        ? !service ||
+          !('serviceContract' in service) ||
+          !service.serviceContract ||
+          typeof service.serviceContract !== 'object'
+        : !service ||
+          !('serviceAcceptance' in service) ||
+          !service.serviceAcceptance ||
+          typeof service.serviceAcceptance !== 'object'
+    )
+      return undefined
+    const historical = service.priorFact !== undefined
+    const lines = service.serviceLines
+    const customer = service.counterpartyType === 'customer'
+    if (
+      (customer &&
+        (!lines?.length ||
+          ((!('serviceAcceptance' in service) ||
+            !service.serviceAcceptance.contractDocumentId) &&
+            !service.operatingEntity))) ||
+      (historical &&
+        (entity === 'service-contract'
+          ? (service.priorFact?.sourceDocumentType === 'BB') !== customer
+          : (service.priorFact?.sourceDocumentType === 'BA') !== customer)) ||
+      (customer &&
+        'serviceAcceptance' in service &&
+        service.serviceAcceptance.settlementDirection !== 'RECEIVABLE') ||
+      (customer &&
+        'serviceContract' in service &&
+        service.serviceContract.requiresPrepayment === true)
+    )
+      return undefined
+    if (
+      (historical && (!lines || !lines.length)) ||
+      (lines !== undefined &&
+        (!Array.isArray(lines) ||
+          !lines.length ||
+          lines.length > 200 ||
+          lines.some((line) => !line || typeof line !== 'object') ||
+          new Set(lines.map((line) => line.lineId)).size !== lines.length ||
+          (historical &&
+            new Set(lines.map((line) => line.sourceLineKey)).size !==
+              lines.length) ||
+          lines.some(
+            (line) =>
+              !line ||
+              !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(line.lineId) ||
+              !text(line.serviceName) ||
+              typeof line.enteredQuantity !== 'string' ||
+              typeof line.baseQuantity !== 'string' ||
+              typeof line.agreedAmount !== 'string' ||
+              (line.unitPrice !== undefined &&
+                typeof line.unitPrice !== 'string') ||
+              (line.serviceCode !== undefined &&
+                (typeof line.serviceCode !== 'string' ||
+                  !line.serviceCode.trim() ||
+                  line.serviceCode.length > 64)) ||
+              (line.contractLineId !== undefined &&
+                (typeof line.contractLineId !== 'string' ||
+                  !/^[0-9A-HJKMNP-TV-Z]{26}$/.test(line.contractLineId))) ||
+              (line.remark !== undefined &&
+                (typeof line.remark !== 'string' ||
+                  line.remark.length > 1000)) ||
+              !isMeasurementUnitSnapshot(line.enteredUnit) ||
+              !isMeasurementUnitSnapshot(line.baseUnit) ||
+              !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.enteredQuantity) ||
+              !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.baseQuantity) ||
+              (!historical &&
+                (!isInputQuantity(line.enteredQuantity) ||
+                  !/[1-9]/.test(line.enteredQuantity) ||
+                  !/[1-9]/.test(line.baseQuantity))) ||
+              !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.agreedAmount) ||
+              (line.unitPrice !== undefined &&
+                !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.unitPrice)) ||
+              (historical
+                ? !text(line.sourceLineKey)
+                : line.sourceLineKey !== undefined) ||
+              (entity === 'service-contract' &&
+                line.contractLineId !== undefined) ||
+              !Object.keys(line).every((key) =>
+                [
+                  'lineId',
+                  'serviceName',
+                  'serviceCode',
+                  'enteredQuantity',
+                  'enteredUnit',
+                  'baseQuantity',
+                  'baseUnit',
+                  'unitPrice',
+                  'agreedAmount',
+                  'contractLineId',
+                  'sourceLineKey',
+                  'remark',
+                ].includes(key),
+              ),
+          )))
+    )
+      return undefined
+    if ('serviceContract' in service) {
+      if (
+        (historical && service.counterpartyType === 'sales-partner') ||
+        (service.counterpartyType === 'sales-partner' &&
+          (lines ||
+            service.serviceContract.requiresPrepayment !== undefined)) ||
+        (service.serviceContract.requiresPrepayment !== undefined &&
+          typeof service.serviceContract.requiresPrepayment !== 'boolean') ||
+        (historical &&
+          service.priorFact?.sourceDocumentType === 'AD' &&
+          service.serviceContract.requiresPrepayment !== true)
+      )
+        return undefined
+    } else if (!service.serviceAcceptance.contractDocumentId) {
+      if (
+        !historical ||
+        !service.counterparty ||
+        service.counterpartyType === undefined ||
+        service.parentEntity ||
+        service.parentDocumentId ||
+        lines?.some((line) => line.contractLineId !== undefined)
+      )
+        return undefined
+    } else if (service.counterpartyType === 'sales-partner') {
+      return undefined
+    }
+    if (
+      'serviceAcceptance' in service &&
+      service.counterparty &&
+      service.counterpartyType === undefined
+    )
+      return undefined
+    if (
+      'priorLineOrigins' in service &&
+      service.priorLineOrigins !== undefined
+    ) {
+      const origins = service.priorLineOrigins
+      if (
+        !historical ||
+        !Array.isArray(origins) ||
+        origins.length > 200 ||
+        origins.some((origin) => !origin || typeof origin !== 'object') ||
+        new Set(origins.map((origin) => origin.lineId)).size !==
+          origins.length ||
+        origins.some(
+          (origin) =>
+            !lines?.some((line) => line.lineId === origin.lineId) ||
+            !['AA', 'AD', 'AB', 'AE', 'AH', 'BB'].includes(
+              origin.sourceDocumentType,
+            ) ||
+            !text(origin.sourceDocumentKey) ||
+            !text(origin.sourceLineKey) ||
+            !Object.keys(origin).every((key) =>
+              [
+                'lineId',
+                'sourceDocumentType',
+                'sourceDocumentKey',
+                'sourceLineKey',
+              ].includes(key),
+            ),
+        )
+      )
+        return undefined
+    }
   }
   const required = payloadRequiredFields[entity]
   if (required.some((field) => !(field in value))) return undefined
@@ -1325,6 +1730,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   ],
   'sale-pricing': ['priceLines'],
   'sale-order': [
+    'priorFact',
     'customer',
     'operatingEntity',
     'salesperson',
@@ -1334,9 +1740,10 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'creditOverrideReason',
     'specialApproval',
   ],
-  'sale-outbound': ['sourceLines'],
+  'sale-outbound': ['priorFact', 'sourceLines'],
   'sale-delivery': ['sourceLines', 'carrier', 'vehicle'],
   'sale-signoff': [
+    'priorFact',
     'customer',
     'expectedSolventContainers',
     'expectedResinContainers',
@@ -1354,7 +1761,14 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'warehouse',
     'productLines',
   ],
-  'purchase-inbound': ['priorFact', 'supplier', 'warehouse', 'sourceLines'],
+  'purchase-inbound': [
+    'priorFact',
+    'supplier',
+    'warehouse',
+    'sourceLines',
+    'productLines',
+    'priorLineOrigins',
+  ],
   'purchase-return': [
     'priorFact',
     'supplier',
@@ -1442,14 +1856,22 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   'bill-maturity': ['maturityType', 'billLines', 'billCashLines'],
   'intermediary-calculation': ['intermediaryCalculation'],
   'service-contract': [
+    'operatingEntity',
+    'priorFact',
+    'serviceLines',
     'counterparty',
     'counterpartyType',
     'employee',
     'serviceContract',
   ],
   'service-acceptance': [
+    'operatingEntity',
+    'priorFact',
+    'serviceLines',
+    'priorLineOrigins',
     'amount',
     'counterparty',
+    'counterpartyType',
     'employee',
     'serviceAcceptance',
   ],
@@ -1463,6 +1885,12 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
           !(
             [
               'priorFact',
+              'serviceLines',
+              'priorLineOrigins',
+              ...(entity === 'service-contract' ||
+              entity === 'service-acceptance'
+                ? ['operatingEntity']
+                : []),
               'salesperson',
               'purchaser',
               'carrier',
@@ -1475,7 +1903,12 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
               'creditOverrideReason',
               'specialApproval',
             ].includes(field) ||
-            (field === 'counterparty' && entity === 'service-acceptance') ||
+            (entity === 'purchase-inbound' &&
+              ['sourceLines', 'productLines', 'priorLineOrigins'].includes(
+                field,
+              )) ||
+            ((field === 'counterparty' || field === 'counterpartyType') &&
+              entity === 'service-acceptance') ||
             (field === 'billCashLines' && entity !== 'bill-maturity') ||
             ((field === 'counterparty' || field === 'counterpartyType') &&
               entity === 'other-income')
@@ -1486,6 +1919,8 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
 
 export type VouLineKind =
   | 'product'
+  | 'service'
+  | 'prior-origin'
   | 'price'
   | 'source'
   | 'invoice'
@@ -1554,7 +1989,7 @@ export type VouSourceLineCandidate = Readonly<{
   sourceDocumentNo: string
   sourceEntity: VouSourceLineSourceEntity
   rootDocumentId: string
-  rootEntity: 'sale-order' | 'purchase-order'
+  rootEntity: 'sale-order' | 'purchase-order' | 'purchase-inbound'
   businessDate: string
   sourceLineId: string
   product: Readonly<{
@@ -1634,9 +2069,9 @@ function headerReferenceCandidatesForEntity(
   if (key === 'counterparty' && entity === 'asset-sale')
     return ['customer', 'other-unit']
   if (key === 'counterparty' && entity === 'service-acceptance')
-    return ['other-unit']
+    return vouServiceCounterpartyTypes
   if (key === 'counterparty' && entity === 'service-contract')
-    return ['other-unit', 'sales-partner']
+    return vouServiceCounterpartyTypes
   return headerReferenceCandidates[key] ?? []
 }
 const lineReferenceCandidates: Readonly<
@@ -1644,6 +2079,7 @@ const lineReferenceCandidates: Readonly<
 > = {
   product: ['product'],
   enteredUnit: ['measurement-unit'],
+  baseUnit: ['measurement-unit'],
   actualMaterial: ['product'],
   actualEnteredUnit: ['measurement-unit'],
   material: ['product'],
@@ -1674,6 +2110,8 @@ function referenceCandidateMetadata(
 }
 const collectionKinds = {
   productLines: 'product',
+  serviceLines: 'service',
+  priorLineOrigins: 'prior-origin',
   priceLines: 'price',
   sourceLines: 'source',
   invoiceLines: 'invoice',
@@ -1770,6 +2208,12 @@ export const vouEntityFieldDescriptors: Readonly<
 export const vouLineFieldDescriptors: Readonly<
   Record<VouLineKind, readonly VouLineFieldDescriptor[]>
 > = {
+  'prior-origin': [
+    'lineId',
+    'sourceDocumentType',
+    'sourceDocumentKey',
+    'sourceLineKey',
+  ].map((key) => ({ key, required: true })),
   product: [
     {
       key: 'product',
@@ -1795,6 +2239,30 @@ export const vouLineFieldDescriptors: Readonly<
     { key: 'quantityPerContainer', required: false },
     { key: 'formula', required: false },
   ],
+  service: [
+    { key: 'lineId', required: true },
+    { key: 'serviceName', required: true },
+    { key: 'serviceCode', required: false },
+    { key: 'enteredQuantity', required: true },
+    {
+      key: 'enteredUnit',
+      required: true,
+      reference: 'object',
+      ...referenceCandidateMetadata('enteredUnit'),
+    },
+    { key: 'baseQuantity', required: true },
+    {
+      key: 'baseUnit',
+      required: true,
+      reference: 'object',
+      ...referenceCandidateMetadata('baseUnit'),
+    },
+    { key: 'unitPrice', required: false },
+    { key: 'agreedAmount', required: true },
+    { key: 'contractLineId', required: false },
+    { key: 'sourceLineKey', required: false },
+    { key: 'remark', required: false },
+  ],
   price: [
     {
       key: 'product',
@@ -1817,6 +2285,7 @@ export const vouLineFieldDescriptors: Readonly<
     { key: 'amount', required: true },
   ],
   signoff: [
+    { key: 'priorAmount', required: false },
     { key: 'sourceLineId', required: true },
     { key: 'signedBaseQuantity', required: true },
     { key: 'rejectedBaseQuantity', required: true },
@@ -2083,6 +2552,7 @@ const decimalFields = new Set([
   'baseQuantity',
   'unitPrice',
   'agreedAmount',
+  'priorAmount',
   'settlementSurcharge',
   'purchaseUnitPrice',
   'quantityPerContainer',
@@ -2113,7 +2583,11 @@ const decimalFields = new Set([
   'employeeAmount',
   'intermediaryAmount',
 ])
-const booleanFields = new Set(['specialApproval', 'withRecourse'])
+const booleanFields = new Set([
+  'specialApproval',
+  'withRecourse',
+  'requiresPrepayment',
+])
 
 function scalarDescriptor(
   key: string,
@@ -2493,9 +2967,10 @@ const nestedObjects: Readonly<
     scalarDescriptor('applicableFrom', false),
     scalarDescriptor('applicableTo', false),
     scalarDescriptor('terms', false),
+    scalarDescriptor('requiresPrepayment', false),
   ],
   serviceAcceptance: [
-    scalarDescriptor('contractDocumentId', true),
+    scalarDescriptor('contractDocumentId', false),
     scalarDescriptor('serviceDate', true),
     scalarDescriptor('acceptanceDate', true),
     scalarDescriptor('settlementDirection', true),
@@ -2569,8 +3044,16 @@ function lineInputFields(
   if (variants) return variants[0]?.fields ?? []
   return Object.freeze(
     vouLineFieldDescriptors[kind].map((field): VouInputFieldDescriptor => {
+      if (kind === 'service' && field.key === 'baseUnit')
+        return {
+          key: field.key,
+          kind: 'object',
+          required: true,
+          fields: measurementUnitSnapshotFields,
+          ...referenceCandidateMetadata(field.key),
+        }
       const quantityDescriptors =
-        kind === 'product'
+        kind === 'product' || kind === 'service'
           ? productQuantityFields
           : kind === 'production' || kind === 'inventory-count'
             ? quantityFields
@@ -2654,13 +3137,13 @@ export const vouEntityInputDescriptors: Readonly<
         fields.push(fixedEnumDescriptor('counterpartyType', 'other-unit'))
       else if (
         scalar.key === 'counterpartyType' &&
-        entity === 'service-contract'
+        (entity === 'service-contract' || entity === 'service-acceptance')
       )
         fields.push({
           key: 'counterpartyType',
           kind: 'enum',
-          required: true,
-          enumValues: ['other-unit', 'sales-partner'],
+          required: entity === 'service-contract',
+          enumValues: vouServiceCounterpartyTypes,
         })
       else fields.push(scalarDescriptor(scalar.key, scalar.required))
     }
@@ -2784,7 +3267,13 @@ export function prepareVouSubmission(
     return { ok: false, errorKey: 'vou_invalid_command' }
   if (
     systemGeneratedSet.has(command.entity) &&
-    facts.trustedSystemActor !== true
+    facts.trustedSystemActor !== true &&
+    facts.priorSaleContinuation !== true &&
+    !(
+      'priorFact' in command.payload &&
+      command.payload.priorFact &&
+      command.entity in vouPriorDocumentTypes
+    )
   )
     return { ok: false, errorKey: 'vou_trusted_actor_required' }
   if (

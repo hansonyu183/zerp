@@ -1,8 +1,5 @@
+import { readVerifiedUpgradeInput } from '../src/platform/upgrade-input.ts'
 import { parseArgs } from 'node:util'
-import { readFile } from 'node:fs/promises'
-import { createReadStream } from 'node:fs'
-import { createHash } from 'node:crypto'
-import { z } from 'zod'
 import { createDatabase } from '../src/db/database.ts'
 import { assertTargetDatabaseBoundary } from '../src/platform/config.ts'
 import {
@@ -10,6 +7,8 @@ import {
   upgradePurchaseCarryover,
   inspectPurchaseSourceClosureUpgrade,
   upgradePurchaseSourceClosure,
+  inspectStandaloneReceiptUpgrade,
+  upgradeStandaloneReceipts,
 } from '../src/vou/purchase-carryover-upgrade.ts'
 
 async function main() {
@@ -17,6 +16,7 @@ async function main() {
     options: {
       apply: { type: 'boolean' },
       'source-closure': { type: 'boolean' },
+      'standalone-receipts': { type: 'boolean' },
       baseline: { type: 'string' },
       backup: { type: 'string' },
       'actor-id': { type: 'string' },
@@ -27,9 +27,18 @@ async function main() {
   if (!url) throw new Error('purchase_carryover_upgrade_database_required')
   assertTargetDatabaseBoundary(url, process.env.TARGET_DATABASE_SCOPE)
   const db = createDatabase(url)
-  const apply = values['source-closure']
-    ? upgradePurchaseSourceClosure
-    : upgradePurchaseCarryover
+  if (values['source-closure'] && values['standalone-receipts'])
+    throw new Error('purchase_carryover_upgrade_inputs_required')
+  const inspect = values['standalone-receipts']
+    ? inspectStandaloneReceiptUpgrade
+    : values['source-closure']
+      ? inspectPurchaseSourceClosureUpgrade
+      : inspectPurchaseCarryoverUpgrade
+  const apply = values['standalone-receipts']
+    ? upgradeStandaloneReceipts
+    : values['source-closure']
+      ? upgradePurchaseSourceClosure
+      : upgradePurchaseCarryover
   try {
     if (!values.apply)
       console.log(
@@ -37,11 +46,7 @@ async function main() {
           await db
             .transaction()
             .setIsolationLevel('repeatable read')
-            .execute(async (tx) =>
-              values['source-closure']
-                ? inspectPurchaseSourceClosureUpgrade(tx)
-                : inspectPurchaseCarryoverUpgrade(tx),
-            ),
+            .execute(async (tx) => inspect(tx)),
         ),
       )
     else {
@@ -52,41 +57,19 @@ async function main() {
         !values['writers-frozen']
       )
         throw new Error('purchase_carryover_upgrade_inputs_required')
-      const file = z
-        .object({
-          path: z.string().min(1),
-          sha256: z.string().regex(/^[a-f0-9]{64}$/),
-        })
-        .strict()
-      const backup = z
-        .object({
-          sourceReleaseSha: z.string().regex(/^[a-f0-9]{40}$/),
-          targetReleaseSha: z.string().regex(/^[a-f0-9]{40}$/),
-          database: file,
-          attachments: file,
-        })
-        .strict()
-        .parse(JSON.parse(await readFile(values.backup, 'utf8')))
-      if (process.env.ZERP_RELEASE_SHA !== backup.targetReleaseSha)
-        throw new Error('purchase_carryover_upgrade_release_mismatch')
-      for (const artifact of [backup.database, backup.attachments]) {
-        const digest = createHash('sha256')
-        for await (const part of createReadStream(artifact.path))
-          digest.update(part)
-        if (digest.digest('hex') !== artifact.sha256)
-          throw new Error('purchase_carryover_upgrade_backup_digest_mismatch')
-      }
-      const baseline = z
-        .object({ baseline: z.string().regex(/^[a-f0-9]{64}$/) })
-        .passthrough()
-        .parse(JSON.parse(await readFile(values.baseline, 'utf8')))
+      const verified = await readVerifiedUpgradeInput({
+        backupPath: values.backup,
+        baselinePath: values.baseline,
+        targetReleaseSha: process.env.ZERP_RELEASE_SHA,
+        errorPrefix: 'purchase_carryover_upgrade',
+      })
       console.log(
         JSON.stringify(
           await apply(db, {
-            baseline: baseline.baseline,
+            baseline: verified.baseline,
             actorId: values['actor-id'],
-            sourceReleaseSha: backup.sourceReleaseSha,
-            targetReleaseSha: backup.targetReleaseSha,
+            sourceReleaseSha: verified.sourceReleaseSha,
+            targetReleaseSha: verified.targetReleaseSha,
           }),
         ),
       )

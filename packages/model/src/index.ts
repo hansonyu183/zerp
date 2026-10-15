@@ -10,12 +10,15 @@ export * from './submission.ts'
 export * from './archives.ts'
 export * from './aux-current.ts'
 export * from './vou.ts'
+export * from './service-context.ts'
 export * from './parity.ts'
 
 export * from './intermediary-calculation.ts'
 
 export * from './quantity.ts'
 export * from './customer-access.ts'
+export * from './purchase-inbound-scope.ts'
 export * from './workflow-permissions.ts'
 
 export * from './order-amount.ts'
+export * from './attachments.ts'

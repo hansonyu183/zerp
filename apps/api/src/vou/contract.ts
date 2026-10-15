@@ -1,3 +1,8 @@
+import {
+  attachmentMimeTypes,
+  attachmentMaxSizeBytes,
+  attachmentMaxCount,
+} from '@zerp/model'
 import { taxInformationSnapshot } from '../dcl/archive-contract.ts'
 import {
   auxiliaryRoute,
@@ -9,6 +14,9 @@ import { createRoute, type OpenAPIHono, z } from '@hono/zod-openapi'
 import type { Schema } from 'hono'
 import {
   vouEntities,
+  vouServiceCounterpartyTypes,
+  vouPriorDocumentTypes,
+  vouPriorCutoffPattern,
   vouEntityPresentation,
   vouPaymentMethodSelectionOrigins,
   userCreatableVouEntities,
@@ -107,8 +115,8 @@ const attachment = z
   .object({
     id: z.string().length(26),
     fileName: z.string().min(1).max(255),
-    contentType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
-    sizeBytes: z.number().int().positive().max(10_485_760),
+    contentType: z.enum(attachmentMimeTypes),
+    sizeBytes: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
     sha256: z.string().regex(/^[0-9a-f]{64}$/),
     stagingId: z.string().length(26),
   })
@@ -118,10 +126,19 @@ const priorFact = z
     sourceClosed: z.boolean(),
     sourceInstanceId: z.string().min(1).max(128),
     sourceSchema: z.string().min(1).max(64),
-    sourceDocumentType: z.enum(['AA', 'AD', 'AB', 'AF']),
+    sourceDocumentType: z.enum([
+      'AA',
+      'AD',
+      'AB',
+      'AE',
+      'AF',
+      'AH',
+      'BB',
+      'BA',
+    ]),
     sourceDocumentKey: z.string().min(1).max(128),
     sourceDocumentNo: z.string().min(1).max(200),
-    capturedAt: z.string().datetime(),
+    capturedAt: z.string().datetime().regex(vouPriorCutoffPattern),
     snapshotDigest: z.string().regex(/^[0-9a-f]{64}$/),
   })
   .strict()
@@ -129,7 +146,7 @@ const basePayload = {
   businessDate: z.string().date(),
   currency: z.string().regex(/^[A-Z]{3}$/),
   remark: z.string().max(1000).optional(),
-  attachments: z.array(attachment).max(10),
+  attachments: z.array(attachment).max(attachmentMaxCount),
   parentEntity: z.enum(vouEntities).optional(),
   parentDocumentId: z.string().length(26).optional(),
 }
@@ -154,6 +171,33 @@ const productQuantitySnapshot = z
     enteredQuantity: quantity,
     enteredUnit: measurementUnitSnapshot,
     baseQuantity: quantity,
+  })
+  .strict()
+const serviceLine = productQuantitySnapshot
+  .extend({
+    baseUnit: measurementUnitSnapshot,
+    lineId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
+    serviceName: z.string().trim().min(1).max(200),
+    serviceCode: z.string().trim().min(1).max(64).optional(),
+    unitPrice: z
+      .string()
+      .regex(/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/)
+      .optional(),
+    agreedAmount: money,
+    contractLineId: z
+      .string()
+      .regex(/^[0-9A-HJKMNP-TV-Z]{26}$/)
+      .optional(),
+    sourceLineKey: z.string().trim().min(1).max(128).optional(),
+    remark: z.string().max(1000).optional(),
+  })
+  .strict()
+const priorLineOrigin = z
+  .object({
+    lineId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
+    sourceDocumentType: z.string().trim().min(1).max(64),
+    sourceDocumentKey: z.string().trim().min(1).max(128),
+    sourceLineKey: z.string().trim().min(1).max(128),
   })
   .strict()
 const formula = z
@@ -205,6 +249,26 @@ const validProductLine = productLine.refine(
     message: 'agreed amount requires positive quantity',
   },
 )
+const directReceiptLine = productLineFields
+  .pick({
+    lineId: true,
+    product: true,
+    enteredQuantity: true,
+    enteredUnit: true,
+    baseQuantity: true,
+    unitPrice: true,
+    agreedAmount: true,
+    remark: true,
+  })
+  .extend({ agreedAmount: money })
+  .refine(
+    (line) =>
+      /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.baseQuantity) &&
+      /[1-9]/.test(line.baseQuantity) &&
+      /^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.enteredQuantity) &&
+      /[1-9]/.test(line.enteredQuantity),
+    { message: 'direct receipt requires positive quantities' },
+  )
 const priceLine = z
   .object({
     product: versionedReference,
@@ -251,6 +315,8 @@ const signoffLine = z
     sourceLineId: z.string().min(1),
     signedBaseQuantity: quantity,
     rejectedBaseQuantity: quantity,
+    lostBaseQuantity: quantity.optional(),
+    priorAmount: money.optional(),
     remark: z.string().max(1000).optional(),
   })
   .strict()
@@ -575,6 +641,7 @@ export const vouPayloadSchemaByEntity = {
   }),
   'sale-pricing': payload({ priceLines: z.array(priceLine).min(1).max(200) }),
   'sale-order': payload({
+    priorFact: priorFact.optional(),
     customer: versionedReference,
     operatingEntity: operatingEntityReference,
     salesperson: employeeReference.optional(),
@@ -585,7 +652,29 @@ export const vouPayloadSchemaByEntity = {
     specialApproval: z.boolean().optional(),
   }),
   'sale-outbound': payload({
-    sourceLines: z.array(sourceLine).min(1).max(200),
+    priorFact: priorFact.optional(),
+    sourceLines: z
+      .array(
+        sourceLine
+          .extend({
+            priorStockLines: z
+              .array(
+                z
+                  .object({
+                    sourceLineKey: z.string().min(1).max(128),
+                    product: objectReference,
+                    quantity: productQuantitySnapshot,
+                  })
+                  .strict(),
+              )
+              .min(1)
+              .max(200)
+              .optional(),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(200),
   }),
   'sale-delivery': payload({
     sourceLines: z.array(sourceLine).min(1).max(200),
@@ -593,6 +682,7 @@ export const vouPayloadSchemaByEntity = {
     vehicle: vehicleReference.optional(),
   }),
   'sale-signoff': payload({
+    priorFact: priorFact.optional(),
     customer: versionedReference,
     expectedSolventContainers: containerCount,
     expectedResinContainers: containerCount,
@@ -617,12 +707,21 @@ export const vouPayloadSchemaByEntity = {
     warehouse: warehouseReference,
     productLines: z.array(validProductLine).min(1).max(200),
   }),
-  'purchase-inbound': payload({
-    priorFact: priorFact.optional(),
-    supplier: versionedReference,
-    warehouse: warehouseReference,
-    sourceLines: z.array(priorSourceLine).min(1).max(200),
-  }),
+  'purchase-inbound': z.union([
+    payload({
+      priorFact: priorFact.optional(),
+      supplier: versionedReference,
+      warehouse: warehouseReference,
+      sourceLines: z.array(priorSourceLine).min(1).max(200),
+    }),
+    payload({
+      priorFact,
+      supplier: versionedReference,
+      warehouse: warehouseReference,
+      productLines: z.array(directReceiptLine).min(1).max(200),
+      priorLineOrigins: z.array(priorLineOrigin).min(1).max(200),
+    }),
+  ]),
   'purchase-return': payload({
     priorFact: priorFact.optional(),
     supplier: versionedReference,
@@ -802,8 +901,11 @@ export const vouPayloadSchemaByEntity = {
   }),
   'intermediary-calculation': payload({ intermediaryCalculation }),
   'service-contract': payload({
+    operatingEntity: operatingEntityReference.optional(),
+    priorFact: priorFact.optional(),
+    serviceLines: z.array(serviceLine).min(1).max(200).optional(),
     counterparty: versionedReference,
-    counterpartyType: z.enum(['other-unit', 'sales-partner']),
+    counterpartyType: z.enum(vouServiceCounterpartyTypes),
     employee: employeeReference,
     serviceContract: z
       .object({
@@ -813,16 +915,22 @@ export const vouPayloadSchemaByEntity = {
         applicableFrom: z.string().date().optional(),
         applicableTo: z.string().date().optional(),
         terms: z.string().max(10000).optional(),
+        requiresPrepayment: z.boolean().optional(),
       })
       .strict(),
   }),
   'service-acceptance': payload({
+    operatingEntity: operatingEntityReference.optional(),
+    priorFact: priorFact.optional(),
+    serviceLines: z.array(serviceLine).min(1).max(200).optional(),
+    priorLineOrigins: z.array(priorLineOrigin).min(1).max(200).optional(),
     amount: money,
     counterparty: versionedReference.optional(),
+    counterpartyType: z.enum(vouServiceCounterpartyTypes).optional(),
     employee: employeeReference,
     serviceAcceptance: z
       .object({
-        contractDocumentId: z.string().min(1),
+        contractDocumentId: z.string().length(26).optional(),
         serviceDate: z.string().date(),
         acceptanceDate: z.string().date(),
         settlementDirection: z.enum(['PAYABLE', 'RECEIVABLE']),
@@ -873,10 +981,10 @@ const stage = z
     stagingId: z.string().length(26),
     fileId: z.string().length(26),
     fileName: z.string().min(1).max(255),
-    mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
-    size: z.number().int().positive().max(10_485_760),
+    mimeType: z.enum(attachmentMimeTypes),
+    size: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
     digest: z.string().regex(/^[0-9a-f]{64}$/),
-    contentBase64: z.string().min(1),
+    contentBase64: z.string(),
   })
   .strict()
 const approvalStatus = z.enum(['PENDING', 'APPROVED', 'REJECTED'])
@@ -898,6 +1006,21 @@ const vouView = z
     rejectedAt: z.string().datetime().nullable(),
     rejectionReason: z.string().nullable(),
     payload: payloadUnion,
+    priorSaleDisposition: z
+      .array(
+        z
+          .object({
+            sourceLineId: z.string().min(1),
+            dispatchedBaseQuantity: quantity,
+            signedBaseQuantity: quantity,
+            rejectedBaseQuantity: quantity,
+            lostBaseQuantity: quantity.nullable(),
+            unresolvedBaseQuantity: quantity,
+            inTransitBaseQuantity: quantity.nullable(),
+          })
+          .strict(),
+      )
+      .optional(),
     availableApprovalActions: z.array(approvalAction),
     canDelete: z.boolean(),
   })
@@ -1007,8 +1130,8 @@ const stageResult = z
     stagingId: z.string().length(26),
     fileId: z.string().length(26),
     fileName: z.string().min(1).max(255),
-    mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
-    size: z.number().int().positive().max(10_485_760),
+    mimeType: z.enum(attachmentMimeTypes),
+    size: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
     digest: z.string().regex(/^[0-9a-f]{64}$/),
     expiresAt: z.string().datetime(),
   })
@@ -1035,6 +1158,9 @@ export const vouAttachmentDownloadRoute = createRoute({
           schema: z.string().openapi({ format: 'binary' }),
         },
         'image/png': {
+          schema: z.string().openapi({ format: 'binary' }),
+        },
+        'application/octet-stream': {
           schema: z.string().openapi({ format: 'binary' }),
         },
       },
@@ -1072,7 +1198,7 @@ const sourceLineCandidate = z
     sourceDocumentNo: z.string().min(1),
     sourceEntity: z.enum(vouSourceLineSourceEntities),
     rootDocumentId: z.string().length(26),
-    rootEntity: z.enum(['sale-order', 'purchase-order']),
+    rootEntity: z.enum(['sale-order', 'purchase-order', 'purchase-inbound']),
     businessDate: z.string().date(),
     sourceLineId: z.string().min(1),
     product: z
@@ -1177,6 +1303,11 @@ const invoiceTaxOptionsRoute = {
   request: { ...invoiceTaxRead.request, params: invoiceParams },
 }
 const invoiceSourceFact = z.object({
+  sourceEntity: z.enum([
+    'sale-signoff',
+    'purchase-inbound',
+    'service-acceptance',
+  ]),
   sourceDocumentId: z.string(),
   sourceApprovalEntryId: z.string(),
   sourceLineId: z.string(),
@@ -1246,9 +1377,12 @@ const unbilledSalesRoute = createRoute({
     },
   },
 })
+const documentOptionQuery = optionPageInput.extend({
+  prepayment: z.literal('true').optional(),
+})
 const documentOptionsRoute = auxiliaryRoute(
   '/vou/{entity}/options',
-  optionPageInput,
+  documentOptionQuery,
   optionPage(
     z.object({
       objectId: z.string(),
@@ -1261,7 +1395,7 @@ const documentOptionsRoute = auxiliaryRoute(
 const vouOptionsRoute = createRoute({
   ...auxiliaryRoute(
     '/vou/{entity}/options',
-    optionPageInput,
+    documentOptionQuery,
     optionPage(
       z.object({
         objectId: z.string(),
@@ -1272,6 +1406,99 @@ const vouOptionsRoute = createRoute({
     ),
   ),
   request: { ...documentOptionsRoute, params: entityParameter },
+})
+const serviceContractLinesRoute = createRoute({
+  method: 'get',
+  path: '/vou/service-acceptance/contract-lines',
+  request: {
+    query: z
+      .object({
+        contractDocumentId: z.string().regex(/^[0-9A-HJKMNP-TV-Z]{26}$/),
+      })
+      .strict(),
+  },
+  responses: {
+    200: {
+      description: '可采用的服务合同明细和客户结算上下文',
+      content: {
+        'application/json': {
+          schema: envelope(
+            z
+              .object({
+                counterpartyType: z.enum(vouServiceCounterpartyTypes),
+                operatingEntity: operatingEntityReference.optional(),
+                items: z
+                  .array(
+                    serviceLine.omit({
+                      sourceLineKey: true,
+                      contractLineId: true,
+                    }),
+                  )
+                  .max(200),
+              })
+              .strict(),
+          ),
+        },
+      },
+    },
+  },
+})
+const priorSaleContinuationResponse = z
+  .union([
+    z.object({
+      entity: z.literal('sale-outbound'),
+      payload: vouPayloadSchemaByEntity['sale-outbound'],
+    }),
+    z.object({
+      entity: z.literal('sale-delivery'),
+      payload: vouPayloadSchemaByEntity['sale-delivery'],
+    }),
+    z.object({
+      entity: z.literal('sale-signoff'),
+      payload: vouPayloadSchemaByEntity['sale-signoff'],
+    }),
+  ])
+  .and(
+    z.object({
+      sourceEntity: z.enum(['sale-order', 'sale-outbound', 'sale-delivery']),
+      sourceDocumentId: z.string().length(26),
+      sourceDocumentNo: z.string().min(1),
+      customerName: z.string(),
+      lines: z.array(
+        z
+          .object({
+            sourceLineId: z.string().min(1),
+            productCode: z.string(),
+            productName: z.string(),
+            availableBaseQuantity: quantity,
+          })
+          .strict(),
+      ),
+    }),
+  )
+  .nullable()
+const priorSaleContinuationRoute = createRoute({
+  method: 'get',
+  path: '/vou/{entity}/prior-sale-continuation',
+  request: {
+    params: z.object({
+      entity: z.enum(['sale-order', 'sale-outbound', 'sale-delivery']),
+    }),
+    query: z
+      .object({
+        documentId: z.string().length(26),
+        businessDate: z.string().date(),
+      })
+      .strict(),
+  },
+  responses: {
+    200: {
+      description: 'VOU approved prior-sale continuation source',
+      content: {
+        'application/json': { schema: envelope(priorSaleContinuationResponse) },
+      },
+    },
+  },
 })
 const sourceLinesRoute = createRoute({
   method: 'get',
@@ -1406,8 +1633,10 @@ export const vouRouteSet = {
 export const vouRouteMetadata = [
   ...[
     saleOrderLineResolve,
+    priorSaleContinuationRoute,
     customerLatestLine,
     sourceLinesRoute,
+    serviceContractLinesRoute,
     invoiceTaxOptionsRoute,
     invoiceSourcesRoute,
   ].map((route) => ({
@@ -1481,7 +1710,13 @@ export const vouCapabilityPermissionMetadata = [
           : `${entity} ${action}`,
     })),
   ),
-  ...userCreatableVouEntities.flatMap((entity) =>
+  ...[
+    ...new Set([
+      ...userCreatableVouEntities,
+      ...Object.keys(vouPriorDocumentTypes),
+      'sale-delivery',
+    ]),
+  ].flatMap((entity) =>
     ['submit-new', 'submit-change'].map((action) => ({
       permission: `/vou/${entity}/${action}`,
       title: `${entity} ${action}`,
@@ -1496,7 +1731,9 @@ export type VouRouteAction =
   | 'unbilled'
   | 'tax-options'
   | 'options'
+  | 'contract-lines'
   | 'source-lines'
+  | 'prior-sale-continuation'
   | 'line-resolve'
   | 'customer-latest-line'
 export type VouRouteHandler = (
@@ -1512,6 +1749,14 @@ export function registerVouRoutes<
   handler: VouRouteHandler,
 ) {
   const resolved = app
+    .openapi(
+      priorSaleContinuationRoute,
+      (c) => handler('prior-sale-continuation', c) as never,
+    )
+    .openapi(
+      serviceContractLinesRoute,
+      (c) => handler('contract-lines', c) as never,
+    )
     .openapi(invoiceTaxOptionsRoute, (c) => handler('tax-options', c) as never)
     .openapi(invoiceSourcesRoute, (c) => handler('invoice-sources', c) as never)
     .openapi(unbilledSalesRoute, (c) => handler('unbilled', c) as never)

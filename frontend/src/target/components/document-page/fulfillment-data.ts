@@ -132,7 +132,10 @@ export function fulfillmentPayload(
 
 export function cloneFulfillment(
   entity: FulfillmentEntity,
-  payload: VouPayloadFor<FulfillmentEntity>,
+  payload: Exclude<
+    VouPayloadFor<FulfillmentEntity>,
+    { productLines: readonly unknown[] }
+  >,
   lineIds: readonly string[],
 ): FulfillmentDraft {
   const supplier = 'supplier' in payload ? payload.supplier : null
@@ -166,7 +169,8 @@ export function cloneFulfillment(
       remark: line.remark ?? '',
       source:
         (payload.parentEntity === 'sale-order' ||
-          payload.parentEntity === 'purchase-order') &&
+          payload.parentEntity === 'purchase-order' ||
+          payload.parentEntity === 'purchase-inbound') &&
         payload.parentDocumentId
           ? {
               rootEntity: payload.parentEntity,

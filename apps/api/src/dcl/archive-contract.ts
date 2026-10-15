@@ -1,4 +1,10 @@
 import {
+  attachmentMimeTypes,
+  attachmentMaxSizeBytes,
+  archiveAttachmentEntities,
+  type ArchiveAttachmentEntity,
+} from '@zerp/model'
+import {
   createRoute,
   type OpenAPIHono,
   type RouteHandler,
@@ -103,6 +109,17 @@ const productFixedFormula = z
       .max(200),
   })
   .strict()
+const attachmentMetadata = z
+  .object({
+    id: z.string().length(26),
+    fileName: z.string().min(1).max(255),
+    contentType: z.string().min(1).max(128),
+    sizeBytes: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
+    sha256: z.string().regex(/^[0-9a-f]{64}$/),
+    stagingId: z.string().length(26).optional(),
+  })
+  .strict()
+
 const productSnapshot = z
   .object({
     name: z.string().min(1).max(200),
@@ -123,6 +140,7 @@ const productSnapshot = z
     defaultPackagingSpec: z.string().max(64),
     recyclable: z.boolean(),
     fixedFormula: productFixedFormula.nullable(),
+    attachments: z.array(attachmentMetadata).default([]),
     remark: z.string().max(1000),
   })
   .strict()
@@ -185,16 +203,6 @@ const customerSettlementSnapshot = settlementSnapshot
 const paymentMethodSnapshot = auxSnapshot
   .extend({
     defaultSalesSurcharge: z.string().regex(/^(?:0|[1-9]\d*)\.\d{2}$/),
-  })
-  .strict()
-const attachmentMetadata = z
-  .object({
-    id: z.string().length(26),
-    fileName: z.string().min(1).max(255),
-    contentType: z.string().min(1).max(128),
-    sizeBytes: z.number().int().positive().max(10_485_760),
-    sha256: z.string().regex(/^[0-9a-f]{64}$/),
-    stagingId: z.string().length(26).optional(),
   })
   .strict()
 
@@ -318,6 +326,7 @@ const supplierSnapshot = z
     operatingEntities: archiveIdentityBase.operatingEntities,
     defaultOperatingEntityId: archiveIdentityBase.defaultOperatingEntityId,
     remark: archiveIdentityBase.remark,
+    attachments: z.array(attachmentMetadata).default([]),
     taxInformation: z.array(taxInformationSnapshot),
     settlementMethod: settlementSnapshot.nullable(),
     defaultPurchaser: stableReference.nullable(),
@@ -327,6 +336,7 @@ const supplierSnapshot = z
 const otherUnitSnapshot = z
   .object({
     ...archiveIdentityBase,
+    attachments: z.array(attachmentMetadata).default([]),
     legalIdentifier: archiveIdentityBase.legalIdentifier.describe(
       '法定识别号可暂缺，非空值在其他单位名录内唯一；不得用来源编号或手机号代填。',
     ),
@@ -337,6 +347,7 @@ const otherUnitSnapshot = z
 const salesPartnerSnapshot = z
   .object({
     ...archiveIdentityBase,
+    attachments: z.array(attachmentMetadata).default([]),
     legalIdentifier: archiveIdentityBase.legalIdentifier.describe(
       '个人销售合作方可留空；组织销售合作方须提供法定识别号。',
     ),
@@ -668,13 +679,14 @@ export const dclArchiveRouteMetadata: Array<{
 
 const attachmentStageRequest = z
   .object({
+    subjectId: z.string().length(26),
     stagingId: z.string().length(26),
     fileId: z.string().length(26),
     fileName: z.string().min(1).max(255),
-    mimeType: z.enum(['application/pdf', 'image/jpeg', 'image/png']),
-    size: z.number().int().positive().max(10_485_760),
+    mimeType: z.enum(attachmentMimeTypes),
+    size: z.number().int().nonnegative().max(attachmentMaxSizeBytes),
     digest: z.string().regex(/^[0-9a-f]{64}$/),
-    contentBase64: z.string().min(1),
+    contentBase64: z.string(),
   })
   .strict()
 const attachmentStageData = z.object({
@@ -682,7 +694,7 @@ const attachmentStageData = z.object({
   fileId: z.string(),
   fileName: z.string(),
   mimeType: z.string(),
-  size: z.number().int().positive(),
+  size: z.number().int().nonnegative(),
   digest: z.string(),
   expiresAt: z.string().datetime(),
 })
@@ -707,7 +719,7 @@ const attachmentCleanupEnvelope = z.union([
   failureEnvelope,
 ])
 
-const customerAttachmentReadRequest = z.discriminatedUnion('source', [
+const archiveAttachmentReadRequest = z.discriminatedUnion('source', [
   z
     .object({
       source: z.literal('current'),
@@ -724,117 +736,117 @@ const customerAttachmentReadRequest = z.discriminatedUnion('source', [
     })
     .strict(),
 ])
-export type CustomerAttachmentReadInput = z.infer<
-  typeof customerAttachmentReadRequest
+export type ArchiveAttachmentReadInput = z.infer<
+  typeof archiveAttachmentReadRequest
 >
-export const customerAttachmentReadRoute = createRoute({
-  method: 'post',
-  path: '/bob/customer/attachment-read',
-  request: {
-    body: {
-      content: {
-        'application/json': { schema: customerAttachmentReadRequest },
-      },
-    },
-  },
-  responses: {
-    200: {
-      description:
-        'Read an attachment adopted by the authorized customer version',
-      content: {
-        'application/json': {
-          schema: z.union([
-            z.object({
-              code: z.literal(0),
-              errorKey: z.literal(''),
-              message: z.literal('ok'),
-              requestId: z.string(),
-              data: z
-                .object({
-                  fileName: z.string(),
-                  mimeType: z.enum([
-                    'application/pdf',
-                    'image/jpeg',
-                    'image/png',
-                  ]),
-                  size: z.number().int().positive(),
-                  digest: z.string(),
-                  contentBase64: z.string(),
-                })
-                .strict(),
-            }),
-            failureEnvelope,
-          ]),
+export {
+  archiveAttachmentEntities,
+  type ArchiveAttachmentEntity,
+} from '@zerp/model'
+function defineAttachmentRoutes<E extends ArchiveAttachmentEntity>(entity: E) {
+  const read = createRoute({
+    method: 'post',
+    path: `/bob/${entity}/attachment-read` as const,
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: archiveAttachmentReadRequest },
         },
       },
     },
-  },
-})
-
-export const customerSubmissionAttachmentReadRoute = createRoute({
-  ...customerAttachmentReadRoute,
-  path: '/dcl/customer/attachment-read' as const,
-})
-
-export const customerAttachmentStageRoute = createRoute({
-  method: 'post',
-  path: '/dcl/customer/attachment-stage',
-  request: {
-    body: {
-      content: { 'application/json': { schema: attachmentStageRequest } },
-    },
-  },
-  responses: {
-    200: {
-      description: 'Stage one customer temporary attachment',
-      content: { 'application/json': { schema: attachmentStageEnvelope } },
-    },
-  },
-})
-export const customerAttachmentCleanupRoute = createRoute({
-  method: 'post',
-  path: '/dcl/customer/attachment-cleanup',
-  request: {
-    body: {
-      content: {
-        'application/json': { schema: z.object({}).strict() },
+    responses: {
+      200: {
+        description:
+          'Read an attachment adopted by the authorized archive version',
+        content: {
+          'application/json': {
+            schema: z.union([
+              z.object({
+                code: z.literal(0),
+                errorKey: z.literal(''),
+                message: z.literal('ok'),
+                requestId: z.string(),
+                data: z
+                  .object({
+                    fileName: z.string(),
+                    mimeType: z.enum(attachmentMimeTypes),
+                    size: z.number().int().nonnegative(),
+                    digest: z.string(),
+                    contentBase64: z.string(),
+                  })
+                  .strict(),
+              }),
+              failureEnvelope,
+            ]),
+          },
+        },
       },
     },
-  },
-  responses: {
-    200: {
-      description: 'Clean expired customer attachment staging',
-      content: { 'application/json': { schema: attachmentCleanupEnvelope } },
-    },
-  },
-})
+  })
 
-dclArchiveRouteMetadata.push(
-  {
+  const submissionRead = createRoute({
+    ...read,
+    path: `/dcl/${entity}/attachment-read` as const,
+  })
+
+  const stage = createRoute({
     method: 'post',
-    path: customerSubmissionAttachmentReadRoute.path,
-    permission: customerSubmissionAttachmentReadRoute.path,
-    title: '读取客户提交件附件',
-  },
-  {
-    method: customerAttachmentReadRoute.method,
-    path: customerAttachmentReadRoute.path,
-    permission: customerAttachmentReadRoute.path,
-    title: '读取客户附件',
-  },
-  {
-    method: customerAttachmentStageRoute.method,
-    path: customerAttachmentStageRoute.path,
-    permission: customerAttachmentStageRoute.path,
-    title: '暂存客户附件',
-  },
-  {
-    method: customerAttachmentCleanupRoute.method,
-    path: customerAttachmentCleanupRoute.path,
-    permission: customerAttachmentCleanupRoute.path,
-    title: '清理客户附件暂存',
-  },
-)
+    path: `/dcl/${entity}/attachment-stage` as const,
+    request: {
+      body: {
+        content: { 'application/json': { schema: attachmentStageRequest } },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Stage one archive temporary attachment',
+        content: { 'application/json': { schema: attachmentStageEnvelope } },
+      },
+    },
+  })
+  const cleanup = createRoute({
+    method: 'post',
+    path: `/dcl/${entity}/attachment-cleanup` as const,
+    request: {
+      body: {
+        content: {
+          'application/json': { schema: z.object({}).strict() },
+        },
+      },
+    },
+    responses: {
+      200: {
+        description: 'Clean expired archive attachment staging',
+        content: { 'application/json': { schema: attachmentCleanupEnvelope } },
+      },
+    },
+  })
+  return { read, submissionRead, stage, cleanup } as const
+}
+export const archiveAttachmentRouteSets = {
+  customer: defineAttachmentRoutes('customer'),
+  product: defineAttachmentRoutes('product'),
+  supplier: defineAttachmentRoutes('supplier'),
+  'other-unit': defineAttachmentRoutes('other-unit'),
+  'sales-partner': defineAttachmentRoutes('sales-partner'),
+} as const
+for (const entity of archiveAttachmentEntities) {
+  const set = archiveAttachmentRouteSets[entity]
+  for (const [action, title] of [
+    ['submissionRead', '读取提交件附件'],
+    ['read', '读取附件'],
+    ['stage', '暂存附件'],
+    ['cleanup', '清理附件暂存'],
+  ] as const) {
+    const route = set[action]
+    dclArchiveRouteMetadata.push({
+      method: route.method,
+      path: route.path,
+      permission: route.path,
+      title: `${archiveEntityPresentation[entity].label}${title}`,
+    })
+  }
+}
 
 export type DclArchiveRouteHandler = (
   entity: DclArchiveEntity,
@@ -852,21 +864,27 @@ export type DclArchiveRouteHandler = (
   >
 >
 
+type AttachmentHandler<
+  Action extends keyof (typeof archiveAttachmentRouteSets)['customer'],
+> = (
+  entity: ArchiveAttachmentEntity,
+  context: Parameters<
+    RouteHandler<
+      (typeof archiveAttachmentRouteSets)[ArchiveAttachmentEntity][Action],
+      TargetRouteEnvironment
+    >
+  >[0],
+) => ReturnType<
+  RouteHandler<
+    (typeof archiveAttachmentRouteSets)[ArchiveAttachmentEntity][Action],
+    TargetRouteEnvironment
+  >
+>
 export interface ArchiveAttachmentHandlers {
-  submissionRead: RouteHandler<
-    typeof customerSubmissionAttachmentReadRoute,
-    TargetRouteEnvironment
-  >
-  read: RouteHandler<typeof customerAttachmentReadRoute, TargetRouteEnvironment>
-
-  stage: RouteHandler<
-    typeof customerAttachmentStageRoute,
-    TargetRouteEnvironment
-  >
-  cleanup: RouteHandler<
-    typeof customerAttachmentCleanupRoute,
-    TargetRouteEnvironment
-  >
+  submissionRead: AttachmentHandler<'submissionRead'>
+  read: AttachmentHandler<'read'>
+  stage: AttachmentHandler<'stage'>
+  cleanup: AttachmentHandler<'cleanup'>
 }
 
 function archiveHandler(
@@ -928,13 +946,86 @@ export function registerDclArchiveRoutes(
       handler: archiveHandler(handler, 'customer', 'delete'),
     },
 
-    { route: customerAttachmentReadRoute, handler: attachments.read },
     {
-      route: customerSubmissionAttachmentReadRoute,
-      handler: attachments.submissionRead,
+      route: archiveAttachmentRouteSets.customer.read,
+      handler: attachments.read.bind(null, 'customer'),
     },
-    { route: customerAttachmentStageRoute, handler: attachments.stage },
-    { route: customerAttachmentCleanupRoute, handler: attachments.cleanup },
+    {
+      route: archiveAttachmentRouteSets.customer.submissionRead,
+      handler: attachments.submissionRead.bind(null, 'customer'),
+    },
+    {
+      route: archiveAttachmentRouteSets.customer.stage,
+      handler: attachments.stage.bind(null, 'customer'),
+    },
+    {
+      route: archiveAttachmentRouteSets.customer.cleanup,
+      handler: attachments.cleanup.bind(null, 'customer'),
+    },
+    {
+      route: archiveAttachmentRouteSets.product.read,
+      handler: attachments.read.bind(null, 'product'),
+    },
+    {
+      route: archiveAttachmentRouteSets.product.submissionRead,
+      handler: attachments.submissionRead.bind(null, 'product'),
+    },
+    {
+      route: archiveAttachmentRouteSets.product.stage,
+      handler: attachments.stage.bind(null, 'product'),
+    },
+    {
+      route: archiveAttachmentRouteSets.product.cleanup,
+      handler: attachments.cleanup.bind(null, 'product'),
+    },
+    {
+      route: archiveAttachmentRouteSets.supplier.read,
+      handler: attachments.read.bind(null, 'supplier'),
+    },
+    {
+      route: archiveAttachmentRouteSets.supplier.submissionRead,
+      handler: attachments.submissionRead.bind(null, 'supplier'),
+    },
+    {
+      route: archiveAttachmentRouteSets.supplier.stage,
+      handler: attachments.stage.bind(null, 'supplier'),
+    },
+    {
+      route: archiveAttachmentRouteSets.supplier.cleanup,
+      handler: attachments.cleanup.bind(null, 'supplier'),
+    },
+    {
+      route: archiveAttachmentRouteSets['other-unit'].read,
+      handler: attachments.read.bind(null, 'other-unit'),
+    },
+    {
+      route: archiveAttachmentRouteSets['other-unit'].submissionRead,
+      handler: attachments.submissionRead.bind(null, 'other-unit'),
+    },
+    {
+      route: archiveAttachmentRouteSets['other-unit'].stage,
+      handler: attachments.stage.bind(null, 'other-unit'),
+    },
+    {
+      route: archiveAttachmentRouteSets['other-unit'].cleanup,
+      handler: attachments.cleanup.bind(null, 'other-unit'),
+    },
+    {
+      route: archiveAttachmentRouteSets['sales-partner'].read,
+      handler: attachments.read.bind(null, 'sales-partner'),
+    },
+    {
+      route: archiveAttachmentRouteSets['sales-partner'].submissionRead,
+      handler: attachments.submissionRead.bind(null, 'sales-partner'),
+    },
+    {
+      route: archiveAttachmentRouteSets['sales-partner'].stage,
+      handler: attachments.stage.bind(null, 'sales-partner'),
+    },
+    {
+      route: archiveAttachmentRouteSets['sales-partner'].cleanup,
+      handler: attachments.cleanup.bind(null, 'sales-partner'),
+    },
     {
       route: archiveRouteSets['product']['query'],
       handler: archiveHandler(handler, 'product', 'query'),

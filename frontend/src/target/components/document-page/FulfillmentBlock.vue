@@ -8,7 +8,11 @@ import { ulid } from 'ulid'
 import FormBlock from '../dynamic-fields/FormBlock.vue'
 import VouReference from './VouReference.vue'
 import { fulfillmentFields, type FulfillmentDraft } from './fulfillment-data.ts'
-const props = defineProps<{ modelValue: FulfillmentDraft; disabled: boolean }>()
+const props = defineProps<{
+  modelValue: FulfillmentDraft
+  disabled: boolean
+  canSwitch: boolean
+}>()
 const emit = defineEmits<{
   'update:modelValue': [value: FulfillmentDraft]
   standalone: []
@@ -31,7 +35,7 @@ const fields = [
 <template>
   <v-btn
     :prepend-icon="actionIcons.edit"
-    v-if="modelValue.entity === 'purchase-inbound'"
+    v-if="modelValue.entity === 'purchase-inbound' && canSwitch"
     :disabled="disabled || modelValue.lines.length > 0"
     @click="emit('standalone')"
     >登记独立此前收货</v-btn

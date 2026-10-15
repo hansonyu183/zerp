@@ -2,6 +2,11 @@ name: Target
 
 on:
   workflow_call:
+    inputs:
+      full:
+        description: Run the complete runtime acceptance suite
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -21,12 +26,20 @@ jobs:
           node-version-file: .nvmrc
           cache: pnpm
       - uses: actions/setup-go@v6
+        if: ${{ inputs.full }}
         with:
           go-version-file: packages/wfl-starlark/go/go.mod
           cache-dependency-path: packages/wfl-starlark/go/go.sum
       - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @zerp/frontend exec playwright install --with-deps chromium
-      - run: TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e
+      - name: Draft static, unit and component checks
+        if: ${{ !inputs.full }}
+        run: make target-static test
+      - name: Install browser for full acceptance
+        if: ${{ inputs.full }}
+        run: pnpm --filter @zerp/frontend exec playwright install --with-deps chromium
+      - name: Full runtime acceptance
+        if: ${{ inputs.full }}
+        run: TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-e2e
       - name: Clean disposable target resources
-        if: always()
+        if: ${{ always() && inputs.full }}
         run: TARGET_POSTGRES_PASSWORD=zerp-target-ci make target-down

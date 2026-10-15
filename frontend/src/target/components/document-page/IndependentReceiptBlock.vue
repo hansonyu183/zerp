@@ -13,6 +13,7 @@ import type { DetailFields } from '../details/detail-fields.ts'
 const props = defineProps<{
   modelValue: IndependentReceiptDraft
   disabled: boolean
+  canSwitch: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: IndependentReceiptDraft]
@@ -85,6 +86,7 @@ function createLine(): IndependentReceiptDraft['lines'][number] {
     <v-btn
       :prepend-icon="actionIcons.edit"
       :disabled="disabled || modelValue.lines.length > 0"
+      v-if="canSwitch"
       @click="emit('order')"
       >按采购订单收货</v-btn
     >

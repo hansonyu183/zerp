@@ -126,9 +126,27 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     review = await client(reviewer.username)
   const historyOnly = await client(historyReader.username)
   for (const entity of entities) {
+    const days = entity === 'supplier' ? 10 : 20
+    const method =
+      entity === 'sales-partner'
+        ? null
+        : await new AuxService(db).ensureE2ESettlementMethod(
+            {
+              name: `货到${days}天`,
+              termCode: `ARRIVAL_${days}`,
+              ruleType: 'RELATIVE_DAYS',
+              monthOffset: 0,
+              dayOfMonth: 0,
+              dayOffset: days,
+              defaultSalesSurcharge: '0.45',
+              description: '',
+            },
+            { id: submitter.userId, permissions: [], trusted: true },
+          )
     const subjectId = ulid(),
       submissionId = ulid()
     const snapshot = {
+      attachments: [],
       ...(entity === 'supplier'
         ? { taxInformation: [] }
         : {
@@ -145,7 +163,13 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       remark: '完整资料',
       ...(entity === 'sales-partner'
         ? { capabilities: ['CHANNEL_PARTNER'] }
-        : { settlementMethod: null }),
+        : {
+            settlementMethod: {
+              id: method!.id,
+              code: 'client-untrusted',
+              name: 'client-untrusted',
+            },
+          }),
       ...(entity === 'supplier' ? { defaultPurchaser: null } : {}),
     }
     const input = {
@@ -159,6 +183,37 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     const submitted = await write(`/dcl/${entity}/submit-new`, input)
     assert.equal(submitted.code, 0, submitted.errorKey)
     assert.equal(submitted.data.status, 'PENDING')
+    const submissions = await write(`/dcl/${entity}/submission-query`, {
+      page: 1,
+      pageSize: 20,
+      filters: {},
+    })
+    assert.equal(submissions.code, 0, submissions.errorKey)
+    const candidate = submissions.data.items.find(
+      (item: { subjectId: string }) => item.subjectId === subjectId,
+    )
+    assert.ok(
+      candidate,
+      'ordinary HTTP query must include a new unpublished candidate',
+    )
+    assert.equal(candidate.latestApproved, null)
+    assert.equal(candidate.openCandidate.submissionId, submissionId)
+
+    if (entity !== 'sales-partner') {
+      assert.equal(
+        submitted.data.snapshot.settlementMethod.termCode,
+        `ARRIVAL_${days}`,
+      )
+      assert.equal(submitted.data.snapshot.settlementMethod.dayOffset, days)
+      assert.equal(
+        'defaultSalesSurcharge' in submitted.data.snapshot.settlementMethod,
+        false,
+      )
+      assert.notEqual(
+        submitted.data.snapshot.settlementMethod.code,
+        'client-untrusted',
+      )
+    }
     const historic = await historyOnly(`/bob/${entity}/versions`, {
       subjectId,
       submissionId,
@@ -239,7 +294,12 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
     assert.equal(current.data.enabled, false)
     assert.equal(current.data.revision, '2')
     assert.equal(current.data.sourceApprovalEntryId, submissionId)
-    assert.deepEqual(current.data.data, snapshot)
+    assert.deepEqual(current.data.data, {
+      ...snapshot,
+      ...(entity !== 'sales-partner'
+        ? { settlementMethod: submitted.data.snapshot.settlementMethod }
+        : {}),
+    })
     const py = await write(`/bob/${entity}/query`, {
       page: 1,
       pageSize: 20,
@@ -251,6 +311,120 @@ test('BOB HTTP keeps formal data, immutable submissions and object enablement in
       ),
       true,
     )
+    if (entity === 'other-unit') {
+      const missing: {
+        formal: typeof current.data
+        approvedRevision: string
+      }[] = []
+      for (const identityKind of ['PERSON', 'ORGANIZATION', 'ORGANIZATION']) {
+        const subjectId = ulid(),
+          submissionId = ulid()
+        const empty = {
+          ...input,
+          subjectId,
+          submissionId,
+          idempotencyKey: submissionId,
+          snapshot: {
+            ...snapshot,
+            identityKind,
+            legalIdentifier: '',
+            settlementMethod: null,
+          },
+        }
+        const pending = await write('/dcl/other-unit/submit-new', empty)
+        assert.equal(pending.code, 0, pending.errorKey)
+        assert.deepEqual(
+          (await write('/dcl/other-unit/submit-new', empty)).data,
+          pending.data,
+        )
+        const approval = await review('/dcl/other-unit/approve', {
+          subjectId,
+          submissionId,
+          expectedRevision: pending.data.revision,
+        })
+        assert.equal(approval.code, 0, approval.errorKey)
+        const result = await write('/bob/other-unit/get', {
+          objectId: subjectId,
+        })
+        assert.equal(result.code, 0, result.errorKey)
+        assert.equal(result.data.data.legalIdentifier, '')
+        assert.equal(result.data.data.identityKind, identityKind)
+        const persisted = await db
+          .selectFrom('dcl_other_unit_versions')
+          .select('legal_identifier')
+          .where('approval_entry_id', '=', submissionId)
+          .executeTakeFirstOrThrow()
+        assert.equal(persisted.legal_identifier, null)
+        missing.push({
+          formal: result.data,
+          approvedRevision: approval.data.revision,
+        })
+      }
+      assert.equal(new Set(missing.map((item) => item.formal.objectId)).size, 3)
+      const original = missing[0]!.formal
+      const identifier = `OTHERBACKFILL${suffix}`
+      const backfillId = ulid()
+      const backfillInput = {
+        ...input,
+        subjectId: original.objectId,
+        submissionId: backfillId,
+        idempotencyKey: backfillId,
+        expectedLatestApprovedSubmissionId: original.sourceApprovalEntryId,
+        expectedLatestApprovedRevision: missing[0]!.approvedRevision,
+        snapshot: {
+          ...original.data,
+          legalIdentifier: identifier.toLowerCase(),
+        },
+      }
+      const backfill = await write(
+        '/dcl/other-unit/submit-change',
+        backfillInput,
+      )
+      assert.equal(backfill.code, 0, backfill.errorKey)
+      assert.equal(
+        (await write('/bob/other-unit/get', { objectId: original.objectId }))
+          .data.data.legalIdentifier,
+        '',
+      )
+      assert.equal(
+        (
+          await review('/dcl/other-unit/approve', {
+            subjectId: original.objectId,
+            submissionId: backfillId,
+            expectedRevision: backfill.data.revision,
+          })
+        ).code,
+        0,
+      )
+      const updated = await write('/bob/other-unit/get', {
+        objectId: original.objectId,
+      })
+      assert.equal(updated.data.data.legalIdentifier, identifier)
+      const other = missing[1]!.formal
+      const conflictId = ulid()
+      const conflict = await write('/dcl/other-unit/submit-change', {
+        ...backfillInput,
+        subjectId: other.objectId,
+        submissionId: conflictId,
+        idempotencyKey: conflictId,
+        expectedLatestApprovedSubmissionId: other.sourceApprovalEntryId,
+        expectedLatestApprovedRevision: missing[1]!.approvedRevision,
+        snapshot: {
+          ...other.data,
+          legalIdentifier: ` ${identifier.toLowerCase()} `,
+        },
+      })
+      assert.equal(conflict.errorKey, 'other_unit_duplicate_legal_identifier')
+      assert.deepEqual(
+        (await write('/bob/other-unit/get', { objectId: other.objectId })).data,
+        other,
+      )
+      const history = await write('/dcl/other-unit/submission-get', {
+        subjectId: original.objectId,
+        submissionId: original.sourceApprovalEntryId,
+      })
+      assert.equal(history.data.snapshot.legalIdentifier, '')
+    }
     if (entity === 'sales-partner') {
       const personalIds: string[] = []
       for (const index of [1, 2]) {

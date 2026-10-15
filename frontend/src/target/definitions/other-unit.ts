@@ -6,7 +6,7 @@ export const otherUnitPage = defineVersionPage<'bob/other-unit'>({
   fields: [
     { key: 'legalName', type: 'text', caption: '法定名称', required: true },
     { key: 'displayName', type: 'text', caption: '显示名称', required: true },
-    { key: 'legalIdentifier', type: 'text', caption: '法定识别号' },
+    { key: 'legalIdentifier', type: 'text', caption: '法定识别号（可后补）' },
     {
       key: 'identityKind',
       type: 'enum',
@@ -27,12 +27,13 @@ export const otherUnitPage = defineVersionPage<'bob/other-unit'>({
       contactName: '',
       phone: '',
       address: '',
+      attachments: [],
       operatingEntities: [],
       defaultOperatingEntityId: null,
       remark: '',
       settlementMethod: null,
     }),
-    clone: (snapshot) => structuredClone(snapshot),
+    clone: (snapshot) => ({ ...structuredClone(snapshot), attachments: [] }),
     validate: (snapshot) =>
       !snapshot.legalName.trim() || !snapshot.displayName.trim()
         ? '请填写法定名称和显示名称。'

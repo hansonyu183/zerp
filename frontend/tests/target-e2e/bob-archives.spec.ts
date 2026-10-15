@@ -1,3 +1,7 @@
+import {
+  selectArchiveOriginals,
+  downloadArchiveOriginals,
+} from './archive-originals.ts'
 import { openArchive, findArchive } from './archive-navigation.ts'
 import { randomBytes } from 'node:crypto'
 
@@ -70,6 +74,10 @@ for (const [entity, title] of [
       await signin(reviewer, true)
       const tag = randomBytes(8).toString('hex').toUpperCase()
       const name = `浏览器${title}${tag}`
+      let staged = 0
+      page.on('response', (response) => {
+        if (response.url().endsWith(`/dcl/${entity}/attachment-stage`)) staged++
+      })
       const path = `/dcl/${entity}`
       await open(page, path, 1440)
       await page.getByRole('button', { name: '新增', exact: true }).click()
@@ -103,10 +111,10 @@ for (const [entity, title] of [
         await expect(
           dialog.getByLabel('法定识别号（个人可留空）', { exact: true }),
         ).toHaveValue('')
-      } else if (entity !== 'supplier')
-        await dialog
-          .getByLabel('法定识别号', { exact: true })
-          .fill(`BROWSER${tag}`)
+      } else if (entity === 'other-unit')
+        await expect(
+          dialog.getByLabel('法定识别号（可后补）', { exact: true }),
+        ).toHaveValue('')
       await dialog.getByLabel('联系人', { exact: true }).fill('浏览器联系人')
       await dialog.getByLabel('联系电话', { exact: true }).fill('1234567')
       await dialog.getByLabel('地址', { exact: true }).fill('浏览器地址')
@@ -120,8 +128,13 @@ for (const [entity, title] of [
         await page.getByRole('option').filter({ hasText: '渠道商' }).click()
         await page.keyboard.press('Escape')
       }
+      if (staged === 0) {
+        await selectArchiveOriginals(dialog)
+        expect(staged).toBe(0)
+      }
       await dialog.getByRole('button', { name: '提交', exact: true }).click()
       await expect(dialog).toHaveCount(0)
+      await expect.poll(() => staged).toBe(2)
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
       await page.getByRole('button', { name: '查询', exact: true }).click()
       await expect(
@@ -165,10 +178,16 @@ for (const [entity, title] of [
         }),
       ).toHaveValue(name)
       await dialog.getByLabel('备注', { exact: true }).fill('第二个版本')
+      if (entity === 'other-unit')
+        await dialog
+          .getByLabel('法定识别号（可后补）', { exact: true })
+          .fill(`BROWSER${tag}`)
       await dialog.getByRole('button', { name: '提交', exact: true }).click()
       await expect(dialog).toHaveCount(0)
       const revision = await records(reviewer, name)
       await expect(revision).toContainText('第二个版本')
+      if (entity === 'other-unit')
+        await expect(revision).toContainText(`BROWSER${tag}`)
       await revision.getByRole('button', { name: '批准', exact: true }).click()
       await expect(
         revision.getByRole('button', { name: '反批准', exact: true }),
@@ -192,6 +211,7 @@ for (const [entity, title] of [
           exact: true,
         }),
       ).toHaveValue(name)
+      await expect(dialog.locator('.attachment-row')).toHaveCount(0)
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
       await openArchive(page, 'bob', entity)
       await findArchive(page, name)
@@ -206,10 +226,12 @@ for (const [entity, title] of [
       await expect(
         history.getByRole('button', { name: /^查看版本 / }),
       ).toHaveCount(2)
+      await downloadArchiveOriginals(page, history, entity, 'current')
       await history
         .getByRole('button', { name: '查看版本 1', exact: true })
         .click()
       await expect(history).toContainText('首个版本')
+      await downloadArchiveOriginals(page, history, entity, 'submission')
       await history.getByRole('button', { name: '关闭', exact: true }).click()
       expect(
         await page.evaluate(

@@ -75,7 +75,9 @@ export interface AuxDataByEntity {
       | 'ARRIVAL_3'
       | 'ARRIVAL_5'
       | 'ARRIVAL_7'
+      | 'ARRIVAL_10'
       | 'ARRIVAL_15'
+      | 'ARRIVAL_20'
       | 'ARRIVAL_30'
       | 'MONTHLY_CURRENT'
       | 'MONTHLY_30'
@@ -266,7 +268,9 @@ export interface AuxReferenceCandidate {
     | 'ARRIVAL_3'
     | 'ARRIVAL_5'
     | 'ARRIVAL_7'
+    | 'ARRIVAL_10'
     | 'ARRIVAL_15'
+    | 'ARRIVAL_20'
     | 'ARRIVAL_30'
     | 'MONTHLY_CURRENT'
     | 'MONTHLY_30'
@@ -532,7 +536,9 @@ const settlementTermCodes = [
   'ARRIVAL_3',
   'ARRIVAL_5',
   'ARRIVAL_7',
+  'ARRIVAL_10',
   'ARRIVAL_15',
+  'ARRIVAL_20',
   'ARRIVAL_30',
   'MONTHLY_CURRENT',
   'MONTHLY_30',
@@ -685,10 +691,12 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
     return {
       name: requiredText(data.name, 200),
       currency,
-      accountName: requiredText(data.accountName, 200),
-      bank: requiredText(data.bank, 200),
+      accountName: optionalString(data.accountName, 200),
+      bank: optionalString(data.bank, 200),
       branch: optionalString(data.branch, 200),
-      accountNumber: upperCompact(data.accountNumber, 128),
+      accountNumber: optionalString(data.accountNumber, 128)
+        ? upperCompact(data.accountNumber, 128)
+        : '',
       operatingEntityId: requiredId(data.operatingEntityId),
       remark: optionalString(data.remark),
     }
@@ -866,7 +874,9 @@ function normaliseData(entity: AuxEntity, source: unknown): AuxData {
           'ARRIVAL_3',
           'ARRIVAL_5',
           'ARRIVAL_7',
+          'ARRIVAL_10',
           'ARRIVAL_15',
+          'ARRIVAL_20',
           'ARRIVAL_30',
           'MONTHLY_CURRENT',
           'MONTHLY_30',
@@ -1243,7 +1253,33 @@ export async function resolveAuxCurrentReference<
   }
 }
 
-/** Tax adoption locks the selected current record until its consumer commits. */
+/** Unit adoption locks its current metadata until the consumer commits. */
+export async function resolveMeasurementUnitSnapshot(
+  transaction: Transaction<DB>,
+  id: string,
+) {
+  if (!/^[0-9A-HJKMNP-TV-Z]{26}$/.test(id))
+    applicationError('validation_failed')
+  const result = await sql<StoredAuxObject>`
+    SELECT id, entity, code, enabled, revision, data, updated_at, updated_by
+    FROM aux_objects WHERE id = ${id} AND entity = 'measurement-unit'
+      AND enabled = true FOR SHARE
+  `.execute(transaction)
+  if (!result.rows[0])
+    applicationError('conflict', {
+      blockers: [
+        { field: 'enteredUnit', objectId: id, entity: 'measurement-unit' },
+      ],
+    })
+  const unit = parseRow(result.rows[0]) as ParsedAuxRow<'measurement-unit'>
+  return {
+    objectId: unit.id,
+    code: unit.code,
+    name: unit.data.name,
+    fixedFactor: unit.data.fixedFactor,
+  }
+}
+
 export async function resolveTaxInformation(
   transaction: Transaction<DB>,
   id: string,
@@ -2181,14 +2217,15 @@ export class AuxService {
     }
     if (entity === 'fund-account') {
       const input = data as unknown as FundAccountCurrentInput
-      await this.assertUniqueCurrentField(
-        transaction,
-        entity,
-        objectId,
-        'accountNumber',
-        input.accountNumber,
-        'fund_account_duplicate_account_number',
-      )
+      if (input.accountNumber)
+        await this.assertUniqueCurrentField(
+          transaction,
+          entity,
+          objectId,
+          'accountNumber',
+          input.accountNumber,
+          'fund_account_duplicate_account_number',
+        )
       return {
         name: input.name,
         currency: input.currency,

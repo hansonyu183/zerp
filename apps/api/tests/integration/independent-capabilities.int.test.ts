@@ -309,6 +309,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     name: `Issue 363 role ${suffix}`,
     description: 'target integration role',
     permissionIds: [departmentQueryPermission.id],
+    purchaseInboundScopes: {},
   })
   assert.equal(role.code, 0)
   assert.equal(role.data.id, stableRoleId)
@@ -326,6 +327,7 @@ test('APP management, AUX CRUD, and BOB reads run through real HTTP and PostgreS
     name: `Another role ${suffix}`,
     description: null,
     permissionIds: [departmentQueryPermission.id],
+    purchaseInboundScopes: {},
   })
   assert.equal(repeatedRole.errorKey, 'conflict')
 

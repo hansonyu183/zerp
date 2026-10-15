@@ -4,6 +4,10 @@ import { ulid } from 'ulid'
 import type { VouPayloadFor } from '@zerp/model'
 import { withWflDatabase } from './wfl-fixture.ts'
 import { seedVouCatalogFixture } from '../fixtures/vou-catalog.ts'
+import { createApp } from '../../src/app.ts'
+import { SessionService } from '../../src/app/session.ts'
+import { loadConfig } from '../../src/platform/config.ts'
+import { modelBuildId } from '@zerp/model'
 
 test('service acceptance requires an approved Other Unit contract and preserves its settlement facts', async () => {
   await withWflDatabase(async (db) => {
@@ -75,7 +79,167 @@ test('service acceptance requires an approved Other Unit contract and preserves 
   })
 })
 
-test('Hono approval posts service settlement to the adopted Other Unit and reverses it', async () => {
+test('normal service HTTP adopts a missing-identifier Other Unit version and keeps it after backfill', async () => {
+  await withWflDatabase(async (db) => {
+    const f = await seedVouCatalogFixture(db)
+    const subjectId = ulid(),
+      submissionId = ulid()
+    const input = {
+      ...f.otherInput,
+      subjectId,
+      submissionId,
+      idempotencyKey: submissionId,
+      snapshot: { ...f.otherInput.snapshot, legalIdentifier: '' },
+    }
+    const pending = await f.bob.submit(
+      'other-unit',
+      'submit-new',
+      input,
+      f.actor,
+      'service-identity',
+    )
+    const approved = await f.bob.review(
+      'other-unit',
+      'approve',
+      {
+        subjectId,
+        submissionId,
+        expectedRevision: pending.revision,
+      },
+      f.reviewerActor,
+      'service-identity',
+    )
+    const config = loadConfig({
+      DATABASE_URL: process.env.TARGET_TEST_DATABASE_URL!,
+      APP_SESSION_COOKIE_SECURE: 'false',
+    })
+    const app = createApp({
+      config,
+      session: new SessionService(db, config),
+      vou: f.vou,
+    })
+    async function client(user: typeof f.submitter) {
+      const signin = await app.request('/session/auth/signin', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-zerp-model-build': modelBuildId,
+        },
+        body: JSON.stringify({ code: user.username, password: user.password }),
+      })
+      const auth = await signin.json()
+      assert.equal(auth.code, 0)
+      return async (entity: string, action: string, input: unknown) => {
+        const response = await app.request(`/vou/${entity}/${action}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-zerp-model-build': modelBuildId,
+            'x-csrf-token': auth.data.csrfToken,
+            cookie: signin.headers.getSetCookie()[0]!,
+          },
+          body: JSON.stringify(input),
+        })
+        const result = await response.json()
+        assert.equal(result.code, 0, result.errorKey)
+        return result.data
+      }
+    }
+    const submit = await client(f.submitter),
+      review = await client(f.reviewer)
+    const contractId = ulid(),
+      contractEntry = ulid()
+    const contract = await submit('service-contract', 'submit-new', {
+      documentId: contractId,
+      submissionId: contractEntry,
+      idempotencyKey: contractEntry,
+      expectedRevision: null,
+      payload: {
+        ...f.documents['service-contract'].payload,
+        counterparty: {
+          objectId: subjectId,
+          approvalEntryId: submissionId,
+          selectionOrigin: 'CURRENT',
+        },
+      },
+    })
+    await review('service-contract', 'approve', {
+      documentId: contractId,
+      submissionId: contractEntry,
+      expectedRevision: contract.revision,
+    })
+    const backfillId = ulid()
+    const backfill = await f.bob.submit(
+      'other-unit',
+      'submit-change',
+      {
+        ...input,
+        submissionId: backfillId,
+        idempotencyKey: backfillId,
+        expectedLatestApprovedSubmissionId: submissionId,
+        expectedLatestApprovedRevision: approved.revision,
+        snapshot: { ...input.snapshot, legalIdentifier: ulid() },
+      },
+      f.actor,
+      'service-backfill',
+    )
+    await f.bob.review(
+      'other-unit',
+      'approve',
+      {
+        subjectId,
+        submissionId: backfillId,
+        expectedRevision: backfill.revision,
+      },
+      f.reviewerActor,
+      'service-backfill',
+    )
+    const acceptanceId = ulid(),
+      acceptanceEntry = ulid()
+    const original = f.documents['service-acceptance']
+      .payload as VouPayloadFor<'service-acceptance'>
+    const acceptance = await submit('service-acceptance', 'submit-new', {
+      documentId: acceptanceId,
+      submissionId: acceptanceEntry,
+      idempotencyKey: acceptanceEntry,
+      expectedRevision: null,
+      payload: {
+        ...original,
+        counterparty: undefined,
+        serviceAcceptance: {
+          ...original.serviceAcceptance,
+          contractDocumentId: contractId,
+        },
+      },
+    })
+    await review('service-acceptance', 'approve', {
+      documentId: acceptanceId,
+      submissionId: acceptanceEntry,
+      expectedRevision: acceptance.revision,
+    })
+    for (const [entity, id] of [
+      ['service-contract', contractId],
+      ['service-acceptance', acceptanceId],
+    ]) {
+      const detail = await submit(entity!, 'get', { documentId: id })
+      assert.equal(detail.payload.counterparty.objectId, subjectId)
+      assert.equal(detail.payload.counterparty.approvalEntryId, submissionId)
+    }
+    assert.equal(
+      (await f.bob.get('other-unit', subjectId, f.actor)).submissionId,
+      backfillId,
+    )
+    const historical = await f.bob.historyGet(
+      'other-unit',
+      subjectId,
+      submissionId,
+      f.actor,
+    )
+    assert.equal(historical.snapshot.legalIdentifier, '')
+  })
+})
+
+async function verifyServiceSettlement(partyType: 'supplier' | 'other-unit') {
   await withWflDatabase(async (db) => {
     const [
       { AccService },
@@ -98,6 +262,49 @@ test('Hono approval posts service settlement to the adopted Other Unit and rever
     const acc = new AccService(db),
       mappings = new AccMappingCatalogService(db),
       book = fixture.book
+    const dimension = partyType === 'supplier' ? 'SUPPLIER' : 'OTHER_UNIT'
+    let contractDocumentId = (
+      fixture.documents['service-acceptance']
+        .payload as VouPayloadFor<'service-acceptance'>
+    ).serviceAcceptance.contractDocumentId!
+    if (partyType === 'supplier') {
+      const source = fixture.documents['service-contract']
+        .payload as VouPayloadFor<'service-contract'>
+      const entry = ulid()
+      const contract = await fixture.vou.submit(
+        'service-contract',
+        'submit-new',
+        {
+          documentId: ulid(),
+          submissionId: entry,
+          idempotencyKey: entry,
+          expectedRevision: null,
+          payload: {
+            ...source,
+            counterpartyType: 'supplier',
+            counterparty: (
+              fixture.documents['purchase-order']
+                .payload as VouPayloadFor<'purchase-order'>
+            ).supplier,
+            serviceContract: { terms: '供应商服务约定' },
+          },
+        },
+        fixture.actor,
+        'supplier-service-fixture',
+      )
+      await fixture.vou.review(
+        'service-contract',
+        'approve',
+        {
+          documentId: contract.documentId,
+          submissionId: entry,
+          expectedRevision: contract.revision,
+        },
+        fixture.reviewerActor,
+        'supplier-service-fixture',
+      )
+      contractDocumentId = contract.documentId
+    }
     const other = await acc.createSubject(
       {
         id: ulid(),
@@ -107,7 +314,7 @@ test('Hono approval posts service settlement to the adopted Other Unit and rever
         parentId: null,
         balanceDirection: 'CREDIT',
         enabled: true,
-        requiredDimensions: ['OTHER_UNIT'],
+        requiredDimensions: [dimension],
         inventoryQuantity: false,
         settlementPurpose: 'OTHER',
       },
@@ -143,7 +350,7 @@ test('Hono approval posts service settlement to the adopted Other Unit and rever
           direction: payable ? ('CREDIT' as const) : ('DEBIT' as const),
           amountField: 'amount',
           currencyField: 'currency',
-          dimensions: { OTHER_UNIT: 'counterparty.objectId' },
+          dimensions: { [dimension]: 'counterparty.objectId' },
           quantityField: null,
           costCounterpartSubjectId: null,
           costCounterpartDimensions: {},
@@ -233,6 +440,13 @@ test('Hono approval posts service settlement to the adopted Other Unit and rever
       const payload = fixture.documents['service-acceptance']
           .payload as VouPayloadFor<'service-acceptance'>,
         id = ulid()
+      const {
+        counterparty: _party,
+        counterpartyType: _type,
+        parentDocumentId: _parent,
+        parentEntity: _entity,
+        ...acceptanceBase
+      } = payload
       const saved = await vou.submit(
         'service-acceptance',
         'submit-new',
@@ -242,9 +456,10 @@ test('Hono approval posts service settlement to the adopted Other Unit and rever
           idempotencyKey: id,
           expectedRevision: null,
           payload: {
-            ...payload,
+            ...acceptanceBase,
             serviceAcceptance: {
               ...payload.serviceAcceptance,
+              contractDocumentId,
               settlementDirection: direction,
             },
           },
@@ -277,7 +492,13 @@ test('Hono approval posts service settlement to the adopted Other Unit and rever
         direction === 'PAYABLE' ? 'CREDIT' : 'DEBIT',
       )
       assert.deepEqual(lines[0]!.dimensions, {
-        OTHER_UNIT: payload.counterparty!.objectId,
+        [dimension]:
+          partyType === 'supplier'
+            ? (
+                fixture.documents['purchase-order']
+                  .payload as VouPayloadFor<'purchase-order'>
+              ).supplier.objectId
+            : payload.counterparty!.objectId,
       })
       const reversed = await post('unapprove', {
         documentId: saved.documentId,
@@ -298,4 +519,10 @@ test('Hono approval posts service settlement to the adopted Other Unit and rever
       )
     }
   })
-})
+}
+
+for (const partyType of ['supplier', 'other-unit'] as const) {
+  test(`Hono approval posts service settlement to the adopted ${partyType} and reverses it`, async () => {
+    await verifyServiceSettlement(partyType)
+  })
+}

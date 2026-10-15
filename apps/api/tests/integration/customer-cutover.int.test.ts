@@ -1,3 +1,4 @@
+import { serviceContextValues } from '@zerp/model'
 import { upgradeDepartmentAccess } from '../../src/app/department-upgrade.ts'
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
@@ -58,6 +59,13 @@ test('customer cutover projects all historical versions, shares tax, splits rece
     .execute(db)
   const catalog = await readTargetPermissionCatalog()
   await upgradeDepartmentAccess(db)
+  // Current APP grants are independent of this historical business-domain fixture.
+  await sql`ALTER TABLE app_role_permissions ADD COLUMN purchase_inbound_scope text NOT NULL CHECK (purchase_inbound_scope IN ('ORDER_REFERENCE','INDEPENDENT_PRIOR','ALL'))`.execute(
+    db,
+  )
+  await sql`ALTER TABLE app_role_permissions ADD COLUMN service_contexts text[] NOT NULL CHECK (service_contexts <@ ARRAY[${sql.join(serviceContextValues.map((value) => sql.lit(value)))}]::text[])`.execute(
+    db,
+  )
   const bootstrap = new TargetBootstrapService(db)
   const oldPermission = {
     id: ulid(),

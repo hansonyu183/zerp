@@ -1,3 +1,4 @@
+import { approveSaleDispatch } from '../fixtures/vou-sale-dispatch.ts'
 import { insertArchiveObjects } from '../fixtures/archive-objects.ts'
 import { VouOpeningService } from '../../src/vou/opening-service.ts'
 import assert from 'node:assert/strict'
@@ -1134,6 +1135,19 @@ test('sale signoff and purchase inbound price the approved source line batch ins
     return { documentId, lineId }
   }
   const saleOrder = await submitAndApproveOrder('sale-order')
+  const deliveryId = await approveSaleDispatch(
+    vou,
+    actor,
+    reviewer,
+    {
+      orderId: saleOrder.documentId,
+      lineId: saleOrder.lineId,
+      quantity: '1',
+      businessDate: '2026-09-05',
+      currency: 'CNY',
+    },
+    documentIds,
+  )
   const signoffDocumentId = ulid(),
     signoffSubmissionId = ulid()
   documentIds.push(signoffDocumentId)
@@ -1149,8 +1163,8 @@ test('sale signoff and purchase inbound price the approved source line batch ins
         businessDate: '2026-09-05',
         currency: 'CNY',
         attachments: [],
-        parentEntity: 'sale-order',
-        parentDocumentId: saleOrder.documentId,
+        parentEntity: 'sale-delivery',
+        parentDocumentId: deliveryId,
         customer,
         expectedSolventContainers: 0,
         expectedResinContainers: 0,

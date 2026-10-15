@@ -17,7 +17,8 @@ export const openingErrorCaptions: Record<string, string> = {
   acc_opening_subject_invalid: '请选择启用的末级科目。',
   acc_opening_dimension_required: '请完整且仅填写科目要求的辅助核算维度。',
   acc_inventory_quantity_required: '库存科目必须填写数量。',
-  acc_inventory_quantity_invalid: '库存期初必须填写正数量和借方金额。',
+  acc_inventory_quantity_invalid:
+    '库存期初必须填写正数量和正金额；借方增加、贷方减少库存。',
   acc_inventory_dimension_required: '库存科目必须选择仓库和产品。',
   acc_opening_asset_invalid: '请检查资产登记及金额。',
   acc_opening_bill_invalid: '请检查票据登记、日期及金额。',

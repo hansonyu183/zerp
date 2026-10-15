@@ -1,4 +1,8 @@
-import { workflowCreatePermission, type VouEntity } from '@zerp/model'
+import {
+  workflowCreatePermission,
+  servicePermissionContexts,
+  type VouEntity,
+} from '@zerp/model'
 import catalog from '../generated/target-permission-catalog.json' with { type: 'json' }
 import { departmentReports } from '../rpt/department-reports.ts'
 import type { Kysely } from 'kysely'
@@ -422,6 +426,11 @@ export class DepartmentRoleService {
           .filter((p) => requested.has(p.path))
           .map((p) => ({
             role_id: id,
+            purchase_inbound_scope: 'ALL',
+            service_contexts: servicePermissionContexts(p.path).filter(
+              (context) =>
+                !context.startsWith('PRIOR_') && context !== 'SUPPLIER',
+            ),
             permission_id: p.id,
             created_by: admin.id,
           }))

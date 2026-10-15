@@ -31,12 +31,13 @@ export const salesPartnerPage = defineVersionPage<'bob/sales-partner'>({
       contactName: '',
       phone: '',
       address: '',
+      attachments: [],
       operatingEntities: [],
       defaultOperatingEntityId: null,
       remark: '',
       capabilities: [],
     }),
-    clone: (snapshot) => structuredClone(snapshot),
+    clone: (snapshot) => ({ ...structuredClone(snapshot), attachments: [] }),
     validate: (snapshot) =>
       snapshot.capabilities.length === 0
         ? '请至少选择一种合作能力。'

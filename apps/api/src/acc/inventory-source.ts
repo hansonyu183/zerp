@@ -1,5 +1,6 @@
+import { isIndependentPriorReceipt, priorFact } from '../vou/prior-fact.ts'
 import {
-  intermediaryUnits,
+  orderLineAmountMinor,
   intermediaryDecimal,
   type VouEntity,
   type VouPayload,
@@ -7,11 +8,12 @@ import {
 } from '@zerp/model'
 import type { Transaction } from 'kysely'
 import type { DB } from '../db/generated.ts'
-import { readVouPersistence } from '../vou/service.ts'
+import { decimalToFixed, readVouPersistence } from '../vou/service.ts'
 import { AccApplicationError } from './service.ts'
 
 export const sourceInventoryEntities: readonly string[] = [
   'sale-outbound',
+  'sale-signoff',
   'sale-return',
   'purchase-inbound',
   'purchase-return',
@@ -23,11 +25,17 @@ export async function sourceInventoryMovements(
   entity: VouEntity,
   payload: VouPayload,
 ) {
-  const sale = entity === 'sale-outbound' || entity === 'sale-return'
+  const sale =
+    entity === 'sale-outbound' ||
+    entity === 'sale-return' ||
+    entity === 'sale-signoff'
+  const rejectedSignoff = entity === 'sale-signoff'
   const isReturn = entity === 'sale-return' || entity === 'purchase-return'
   if (
-    (!isReturn && !('sourceLines' in payload)) ||
-    (isReturn && !('returnLines' in payload))
+    (rejectedSignoff && !('signoffLines' in payload)) ||
+    (!rejectedSignoff &&
+      ((!isReturn && !('sourceLines' in payload)) ||
+        (isReturn && !('returnLines' in payload))))
   )
     throw new AccApplicationError('acc_period_cost_source_missing')
   const lines: readonly {
@@ -35,11 +43,25 @@ export async function sourceInventoryMovements(
     baseQuantity: string
     sourceDocumentId?: string
   }[] =
-    'returnLines' in payload
-      ? payload.returnLines
-      : 'sourceLines' in payload
-        ? payload.sourceLines
-        : []
+    'signoffLines' in payload
+      ? payload.signoffLines.flatMap((line) => {
+          const quantity = decimalToFixed(line.rejectedBaseQuantity, 6)
+          if (quantity === null || quantity < 0n)
+            throw new AccApplicationError('acc_period_cost_source_missing')
+          return quantity === 0n
+            ? []
+            : [
+                {
+                  sourceLineId: line.sourceLineId,
+                  baseQuantity: line.rejectedBaseQuantity,
+                },
+              ]
+        })
+      : 'returnLines' in payload
+        ? payload.returnLines
+        : 'sourceLines' in payload
+          ? payload.sourceLines
+          : []
   const cache = new Map<
     string,
     Awaited<ReturnType<typeof readVouPersistence>>
@@ -58,12 +80,29 @@ export async function sourceInventoryMovements(
     let outboundId: string | null = null
     const seen = new Set<string>()
     let order:
-      VouPayloadFor<'sale-order'> | VouPayloadFor<'purchase-order'> | undefined
+      | VouPayloadFor<'sale-order'>
+      | VouPayloadFor<'purchase-order'>
+      | Extract<
+          VouPayloadFor<'purchase-inbound'>,
+          { productLines: readonly unknown[] }
+        >
+      | undefined
     while (sourceDocumentId && !seen.has(sourceDocumentId)) {
       seen.add(sourceDocumentId)
       const source = await read(sourceDocumentId)
-      if (source.entity === 'sale-outbound') outboundId = source.documentId
-      if (source.entity === (sale ? 'sale-order' : 'purchase-order')) {
+      if (source.entity === 'sale-outbound') {
+        outboundId = source.documentId
+        // Prior customer quantities do not prove physical products, warehouse or original cost.
+        if ((isReturn || rejectedSignoff) && priorFact(source.payload))
+          throw new AccApplicationError('acc_period_cost_source_missing', [
+            { kind: 'VOU', entity: 'sale-outbound', id: source.documentId },
+          ])
+      }
+      if (
+        source.entity === (sale ? 'sale-order' : 'purchase-order') ||
+        (entity === 'purchase-return' &&
+          isIndependentPriorReceipt(source.entity, source.payload))
+      ) {
         order = source.payload as typeof order
         break
       }
@@ -72,7 +111,11 @@ export async function sourceInventoryMovements(
     const product = order?.productLines.find(
       (candidate) => candidate.lineId === line.sourceLineId,
     )
-    if (!order || !product || (entity === 'sale-return' && !outboundId))
+    if (
+      !order ||
+      !product ||
+      ((entity === 'sale-return' || rejectedSignoff) && !outboundId)
+    )
       throw new AccApplicationError('acc_period_cost_source_missing', [
         { kind: 'VOU', id: sourceDocumentId, entity },
       ])
@@ -80,12 +123,10 @@ export async function sourceInventoryMovements(
       'warehouse' in payload
         ? payload.warehouse.objectId
         : order.warehouse.objectId
-    const quantity = intermediaryUnits(line.baseQuantity, 6)
     const amount =
       entity === 'purchase-inbound'
         ? intermediaryDecimal(
-            (quantity * intermediaryUnits(product.unitPrice, 2) + 500_000n) /
-              1_000_000n,
+            orderLineAmountMinor(product, line.baseQuantity, 'HALF_UP'),
           )
         : '0.00'
     movements.push({
@@ -98,7 +139,8 @@ export async function sourceInventoryMovements(
       amount,
       currency: payload.currency,
       sourceLineId: line.sourceLineId,
-      costSourceDocumentId: entity === 'sale-return' ? outboundId : null,
+      costSourceDocumentId:
+        entity === 'sale-return' || rejectedSignoff ? outboundId : null,
     })
   }
   return movements

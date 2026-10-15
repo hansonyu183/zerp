@@ -376,7 +376,7 @@ export async function migrateMeasurementUnits(
     )
     const shapeCheck = productDefinition
       .slice(
-        productDefinition.indexOf('    CHECK ('),
+        productDefinition.lastIndexOf('\n    CHECK ('),
         productDefinition.lastIndexOf('\n);'),
       )
       .trim()

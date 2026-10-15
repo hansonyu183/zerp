@@ -30,7 +30,9 @@ const settlementTermLabels = {
   ARRIVAL_3: '到货后 3 天',
   ARRIVAL_5: '到货后 5 天',
   ARRIVAL_7: '到货后 7 天',
+  ARRIVAL_10: '到货后 10 天',
   ARRIVAL_15: '到货后 15 天',
+  ARRIVAL_20: '到货后 20 天',
   ARRIVAL_30: '到货后 30 天',
   MONTHLY_CURRENT: '当月月结',
   MONTHLY_30: '月结 30 天',
@@ -104,6 +106,7 @@ export const supplierDetails = [
     caption: '默认采购员',
     fields: referenceDetails,
   },
+  { key: 'attachments', type: 'attachments', caption: '原件' },
 ] as const satisfies DetailFields<SupplierData>
 export const otherUnitDetails = [
   ...associations,
@@ -113,6 +116,7 @@ export const otherUnitDetails = [
     caption: '结算方式',
     fields: settlementDetails,
   },
+  { key: 'attachments', type: 'attachments', caption: '原件' },
 ] as const satisfies DetailFields<OtherUnitData>
 export const salesPartnerDetails = [
   ...associations,
@@ -122,6 +126,7 @@ export const salesPartnerDetails = [
     caption: '合作能力',
     options: salesPartnerCapabilityOptions,
   },
+  { key: 'attachments', type: 'attachments', caption: '原件' },
 ] as const satisfies DetailFields<SalesPartnerData>
 const quantityDetails = [
   { key: 'enteredQuantity', type: 'decimal', scale: 18, caption: '录入数量' },
@@ -229,6 +234,7 @@ export const productDetails = [
       },
     ],
   },
+  { key: 'attachments', type: 'attachments', caption: '原件' },
 ] as const satisfies DetailFields<ProductSnapshot>
 const pricingDetails = [
   {

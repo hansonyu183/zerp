@@ -107,13 +107,22 @@ test('database seed is atomic, concurrent-safe and preserves subsequent book mai
     .select(['id', 'data', 'revision'])
     .where('entity', '=', 'settlement-method')
     .execute()
-  assert.equal(settlementRows.length, 11)
+  assert.equal(settlementRows.length, 13)
   assert.equal(
     new Set(
       settlementRows.map((row) => (row.data as { termCode: string }).termCode),
     ).size,
-    11,
+    13,
   )
+  for (const days of [10, 20]) {
+    const term = settlementRows.find(
+      (row) =>
+        (row.data as { termCode: string }).termCode === `ARRIVAL_${days}`,
+    )!
+    assert.ok(term)
+    assert.equal((term.data as { dayOffset: number }).dayOffset, days)
+    assert.equal((term.data as { ruleType: string }).ruleType, 'RELATIVE_DAYS')
+  }
   const arrival30 = settlementRows.find(
     (row) => (row.data as { termCode: string }).termCode === 'ARRIVAL_30',
   )!

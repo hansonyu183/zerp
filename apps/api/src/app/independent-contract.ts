@@ -165,7 +165,7 @@ const purchaseInboundScopes = z.record(
 )
 const serviceContexts = z.record(
   z.string(),
-  z.array(z.enum(serviceContextValues)).min(1).max(4),
+  z.array(z.enum(serviceContextValues)).min(1).max(serviceContextValues.length),
 )
 const roleDetail = roleListItem.extend({
   purchaseInboundScopes,

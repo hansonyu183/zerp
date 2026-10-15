@@ -537,7 +537,7 @@ export interface BobObjects {
   revision: Generated<Int8>
 }
 
-export interface DclCustomerAttachments {
+export interface DclArchiveAttachments {
   approval_entry_id: string
   created_at: Timestamp
   digest: string
@@ -548,9 +548,10 @@ export interface DclCustomerAttachments {
   storage_key: string
 }
 
-export interface DclCustomerAttachmentStaging {
+export interface DclArchiveAttachmentStaging {
   created_at: Timestamp
   digest: string
+  entity: string
   expires_at: Timestamp
   file_id: string
   file_name: string
@@ -559,6 +560,7 @@ export interface DclCustomerAttachmentStaging {
   owner_user_id: string
   size_bytes: number
   storage_key: string
+  subject_id: string
 }
 
 export interface DclCustomerConversionEvidence {
@@ -669,6 +671,7 @@ export interface DclOtherUnitVersionOperatingEntities {
 export interface DclOtherUnitVersions {
   address: string | null
   approval_entry_id: string
+  attachments: Generated<Json>
   contact_name: string | null
   contact_phone: string | null
   default_operating_entity_id: string | null
@@ -683,6 +686,7 @@ export interface DclOtherUnitVersions {
 
 export interface DclProductVersions {
   approval_entry_id: string
+  attachments: Generated<Json>
   barcode: string | null
   behavior_profile: string | null
   category_id: string | null
@@ -711,6 +715,7 @@ export interface DclSalesPartnerVersionOperatingEntities {
 export interface DclSalesPartnerVersions {
   address: string | null
   approval_entry_id: string
+  attachments: Generated<Json>
   capabilities: Generated<Json>
   contact_name: string | null
   contact_phone: string | null
@@ -742,6 +747,7 @@ export interface DclSupplierVersionOperatingEntities {
 export interface DclSupplierVersions {
   address: string | null
   approval_entry_id: string
+  attachments: Generated<Json>
   contact_name: string | null
   contact_phone: string | null
   default_operating_entity_id: string | null
@@ -1749,6 +1755,8 @@ export interface VouServiceLineSnapshots {
 export interface VouSignoffLineSnapshots {
   approval_entry_id: string
   line_no: number
+  prior_amount_minor: Int8 | null
+  prior_lost_quantity_micros: Int8 | null
   rejected_quantity_micros: Int8
   remark: string | null
   signed_quantity_micros: Int8
@@ -1760,6 +1768,7 @@ export interface VouSourceLineSnapshots {
   base_quantity_micros: Int8
   line_no: number
   prior_amount_minor: Int8 | null
+  prior_stock_lines: Json | null
   remark: string | null
   source_line_id: string
 }
@@ -1883,8 +1892,8 @@ export interface DB {
   bob_archive_objects: BobArchiveObjects
   bob_legacy_enablement_evidence: BobLegacyEnablementEvidence
   bob_objects: BobObjects
-  dcl_customer_attachment_staging: DclCustomerAttachmentStaging
-  dcl_customer_attachments: DclCustomerAttachments
+  dcl_archive_attachment_staging: DclArchiveAttachmentStaging
+  dcl_archive_attachments: DclArchiveAttachments
   dcl_customer_conversion_evidence: DclCustomerConversionEvidence
   dcl_customer_versions: DclCustomerVersions
   dcl_employee_versions: DclEmployeeVersions

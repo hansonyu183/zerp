@@ -154,7 +154,7 @@ const expenseFields = [
     <VouReference
       v-if="
         modelValue.entity === 'other-payment' &&
-        modelValue.counterpartyType === 'other-unit'
+        ['supplier', 'other-unit'].includes(modelValue.counterpartyType)
       "
       entity="service-contract"
       caption="预付服务合同（可选）"

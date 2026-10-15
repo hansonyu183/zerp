@@ -2610,34 +2610,36 @@ export async function deleteTargetCustomer(
   )
 }
 
-export type TargetCustomerAttachmentReadInput = PostJson<
+export type TargetArchiveAttachmentReadInput = PostJson<
   (typeof client.bob.customer)['attachment-read']['$post']
 >
-export async function readTargetCustomerAttachment(
+export async function readTargetArchiveAttachment(
   csrfToken: string,
-  input: TargetCustomerAttachmentReadInput,
+  entity: import('@zerp/model').ArchiveAttachmentEntity,
+  input: TargetArchiveAttachmentReadInput,
   domain: 'bob' | 'dcl',
 ) {
   return unwrapTarget(
     await (
       await (
         domain === 'bob'
-          ? client.bob.customer['attachment-read']
-          : client.dcl.customer['attachment-read']
+          ? client.bob[entity]['attachment-read']
+          : client.dcl[entity]['attachment-read']
       ).$post({ json: input }, csrfHeaders(csrfToken))
     ).json(),
   )
 }
-export type TargetCustomerAttachmentStageInput = PostJson<
+export type TargetArchiveAttachmentStageInput = PostJson<
   (typeof client)['dcl']['customer']['attachment-stage']['$post']
 >
-export async function stageTargetCustomerAttachment(
+export async function stageTargetArchiveAttachment(
   csrfToken: string,
-  input: TargetCustomerAttachmentStageInput,
+  entity: import('@zerp/model').ArchiveAttachmentEntity,
+  input: TargetArchiveAttachmentStageInput,
 ) {
   return unwrapTarget(
     await (
-      await client.dcl.customer['attachment-stage'].$post(
+      await client.dcl[entity]['attachment-stage'].$post(
         { json: input },
         csrfHeaders(csrfToken),
       )
@@ -3130,6 +3132,20 @@ export async function queryTargetVouchers(
         { param: { entity }, json: input },
         csrfHeaders(csrfToken),
       )
+    ).json(),
+  )
+}
+export async function queryTargetPriorSaleContinuation(
+  entity: 'sale-order' | 'sale-outbound' | 'sale-delivery',
+  documentId: string,
+  businessDate: string,
+) {
+  return unwrapTarget(
+    await (
+      await client.vou[':entity']['prior-sale-continuation'].$get({
+        param: { entity },
+        query: { documentId, businessDate },
+      })
     ).json(),
   )
 }

@@ -1,3 +1,7 @@
+import {
+  selectArchiveOriginals,
+  downloadArchiveOriginals,
+} from './archive-originals.ts'
 import { openArchive, findArchive } from './archive-navigation.ts'
 import { randomBytes } from 'node:crypto'
 
@@ -70,6 +74,10 @@ for (const [entity, title] of [
       await signin(reviewer, true)
       const tag = randomBytes(8).toString('hex').toUpperCase()
       const name = `浏览器${title}${tag}`
+      let staged = 0
+      page.on('response', (response) => {
+        if (response.url().endsWith(`/dcl/${entity}/attachment-stage`)) staged++
+      })
       const path = `/dcl/${entity}`
       await open(page, path, 1440)
       await page.getByRole('button', { name: '新增', exact: true }).click()
@@ -120,8 +128,13 @@ for (const [entity, title] of [
         await page.getByRole('option').filter({ hasText: '渠道商' }).click()
         await page.keyboard.press('Escape')
       }
+      if (staged === 0) {
+        await selectArchiveOriginals(dialog)
+        expect(staged).toBe(0)
+      }
       await dialog.getByRole('button', { name: '提交', exact: true }).click()
       await expect(dialog).toHaveCount(0)
+      await expect.poll(() => staged).toBe(2)
       await page.getByLabel('编码、拼音或名称', { exact: true }).fill(name)
       await page.getByRole('button', { name: '查询', exact: true }).click()
       await expect(
@@ -198,6 +211,7 @@ for (const [entity, title] of [
           exact: true,
         }),
       ).toHaveValue(name)
+      await expect(dialog.locator('.attachment-row')).toHaveCount(0)
       await dialog.getByRole('button', { name: '取消', exact: true }).click()
       await openArchive(page, 'bob', entity)
       await findArchive(page, name)
@@ -212,10 +226,12 @@ for (const [entity, title] of [
       await expect(
         history.getByRole('button', { name: /^查看版本 / }),
       ).toHaveCount(2)
+      await downloadArchiveOriginals(page, history, entity, 'current')
       await history
         .getByRole('button', { name: '查看版本 1', exact: true })
         .click()
       await expect(history).toContainText('首个版本')
+      await downloadArchiveOriginals(page, history, entity, 'submission')
       await history.getByRole('button', { name: '关闭', exact: true }).click()
       expect(
         await page.evaluate(

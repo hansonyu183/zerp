@@ -13,3 +13,7 @@
 - [订单金额结构保留数据升级](order-amount-upgrade.md)
 
 - [采购此前事实结构保留数据升级](purchase-carryover-upgrade.md)：冻结写入与备份后增补当前采购承接结构，逐表核对全部原事实。
+
+- [销售此前事实结构保留数据升级](sale-carryover-upgrade.md)：保留既有采购/服务事实，新增可空销售字段；独立权限升级不自动授权。
+
+- [普通原始附件归档升级](attachment-archive-upgrade.md)：配对备份及冻结后扩展附件形状约束，保全全部原行与存储键。

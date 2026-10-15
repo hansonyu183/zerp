@@ -147,7 +147,10 @@ export async function settleInventoryCost(
       fact.production_line_no === null
         ? null
         : `${fact.journal_id}:${fact.production_line_no}`
-    if (fact.vou_entity === 'sale-return') {
+    if (
+      fact.vou_entity === 'sale-return' ||
+      fact.vou_entity === 'sale-signoff'
+    ) {
       const sourceKey = `${fact.cost_source_document_id}:${fact.source_line_id}:${fact.product_id}`
       const sources = outboundCosts.get(sourceKey)
       const original = sources?.length === 1 ? sources[0] : undefined
@@ -209,6 +212,7 @@ export async function settleInventoryCost(
         fact.vou_entity !== 'purchase-inbound' &&
         fact.vou_entity !== 'inventory-count' &&
         fact.vou_entity !== 'sale-return' &&
+        fact.vou_entity !== 'sale-signoff' &&
         !productionKey &&
         fact.source_kind !== 'OPENING')
     )

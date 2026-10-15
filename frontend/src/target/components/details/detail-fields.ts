@@ -60,10 +60,15 @@ export type DetailFields<T extends object> = readonly (
     }[Keys<T>]
 )[]
 export type AttachmentSource =
-  | { source: 'current'; objectId: string }
+  | {
+      source: 'current'
+      entity: import('@zerp/model').ArchiveAttachmentEntity
+      objectId: string
+    }
   | {
       source: 'submission'
       domain: 'bob' | 'dcl'
+      entity: import('@zerp/model').ArchiveAttachmentEntity
       subjectId: string
       submissionId: string
     }

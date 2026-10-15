@@ -50,6 +50,12 @@ try {
     .select('code')
     .where('id', '=', fixture.salePayload.warehouse.objectId)
     .executeTakeFirstOrThrow()
+  const employee = await db
+    .selectFrom('aux_objects')
+    .select('code')
+    .where('id', '=', fixture.salePayload.salesperson!.objectId)
+    .executeTakeFirstOrThrow()
+  const serviceUnit = fixture.references.unitSnapshot
   const child = spawn(
     'pnpm',
     [
@@ -63,7 +69,7 @@ try {
       'vou-entry.spec.ts',
       'purchase-inbound-scopes.spec.ts',
       '--grep',
-      'independent prior receipt|receipt permission scope',
+      'independent prior receipt|independent prior service|receipt permission scope',
       ...process.argv.slice(2),
     ],
     {
@@ -87,6 +93,8 @@ try {
           supplier: codes.get(fixture.supplierId),
           product: codes.get(fixture.rawId),
           warehouse: warehouse.code,
+          employee: employee.code,
+          serviceUnit: serviceUnit.name,
         }),
       },
     },

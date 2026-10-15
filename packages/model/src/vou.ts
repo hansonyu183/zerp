@@ -219,7 +219,7 @@ export interface VouPaymentMethodSelectionInput extends VouPaymentMethodSnapshot
 export interface VouAttachmentMetadata {
   id: string
   fileName: string
-  contentType: 'application/pdf' | 'image/jpeg' | 'image/png'
+  contentType: import('./attachments.ts').AttachmentMimeType
   sizeBytes: number
   sha256: string
   stagingId: string
@@ -408,14 +408,19 @@ export interface VouBillCashLineInput {
 }
 
 export const vouPriorDocumentTypes = {
+  'sale-order': ['BB'],
+  'sale-outbound': ['BB', 'BA'],
+  'sale-signoff': ['BA'],
   'purchase-order': ['AA', 'AD'],
   'purchase-inbound': ['AB', 'AH'],
   'purchase-return': ['AF'],
-  'service-contract': ['AA', 'AD'],
-  'service-acceptance': ['AB', 'AE', 'AH'],
+  'service-contract': ['AA', 'AD', 'BB'],
+  'service-acceptance': ['AB', 'AE', 'AH', 'BA'],
 } as const
 
 export const vouPriorSourceDocumentPresentation = {
+  BB: { label: '销售配货' },
+  BA: { label: '销售签收' },
   AA: { label: '采购订单' },
   AD: { label: '预付采购订单' },
   AB: { label: '采购入库' },
@@ -458,11 +463,22 @@ export interface VouPriorFact {
   sourceClosed: boolean
   sourceInstanceId: string
   sourceSchema: string
-  sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AE' | 'AF' | 'AH'
+  sourceDocumentType: 'AA' | 'AD' | 'AB' | 'AE' | 'AF' | 'AH' | 'BB' | 'BA'
   sourceDocumentKey: string
   sourceDocumentNo: string
   capturedAt: string
   snapshotDigest: string
+}
+
+/** Pre-cutoff customer quantities; unresolved disposition remains separate from proven transit. */
+export interface VouPriorSaleDisposition {
+  sourceLineId: string
+  dispatchedBaseQuantity: string
+  signedBaseQuantity: string
+  rejectedBaseQuantity: string
+  lostBaseQuantity: string | null
+  unresolvedBaseQuantity: string
+  inTransitBaseQuantity: string | null
 }
 
 export interface VouPayloadBase {
@@ -489,6 +505,11 @@ type SourcePayload = VouPayloadBase & {
   sourceLines: readonly {
     sourceLineId: string
     priorAmount?: string
+    priorStockLines?: readonly {
+      sourceLineKey: string
+      product: VouObjectReferenceInput
+      quantity: VouProductQuantitySnapshotInput
+    }[]
     baseQuantity: string
     remark?: string
   }[]
@@ -631,11 +652,21 @@ export interface VouInvoiceFacts extends VouPayloadBase {
   taxInformation: TaxInformationSnapshot
   invoiceLines: readonly VouInvoiceLine[]
 }
+export const vouServiceCounterpartyTypes = [
+  'customer',
+  'supplier',
+  'other-unit',
+  'sales-partner',
+] as const
+export type VouServiceCounterpartyType =
+  (typeof vouServiceCounterpartyTypes)[number]
+
 export interface VouPayloadShapes {
   'sale-invoice': VouInvoiceFacts & { customer: VouVersionedReferenceInput }
   'purchase-invoice': VouInvoiceFacts & { supplier: VouVersionedReferenceInput }
   'sale-pricing': PricePayload
   'sale-order': ProductPayload & {
+    priorFact?: VouPriorFact
     customer: VouVersionedReferenceInput
     operatingEntity: VouAuxCurrentReferenceInput
     salesperson?: VouAuxCurrentReferenceInput
@@ -644,12 +675,13 @@ export interface VouPayloadShapes {
     creditOverrideReason?: string
     specialApproval?: boolean
   }
-  'sale-outbound': SourcePayload
+  'sale-outbound': SourcePayload & { priorFact?: VouPriorFact }
   'sale-delivery': SourcePayload & {
     carrier?: VouVersionedReferenceInput
     vehicle?: VouAuxCurrentReferenceInput
   }
   'sale-signoff': VouPayloadBase & {
+    priorFact?: VouPriorFact
     customer: VouVersionedReferenceInput
     expectedSolventContainers: number
     expectedResinContainers: number
@@ -660,6 +692,8 @@ export interface VouPayloadShapes {
       sourceLineId: string
       signedBaseQuantity: string
       rejectedBaseQuantity: string
+      lostBaseQuantity?: string
+      priorAmount?: string
       remark?: string
     }[]
   }
@@ -818,10 +852,11 @@ export interface VouPayloadShapes {
     intermediaryCalculation: VouIntermediaryCalculationInput
   }
   'service-contract': VouPayloadBase & {
+    operatingEntity?: VouAuxCurrentReferenceInput
     priorFact?: VouPriorFact
     serviceLines?: readonly VouServiceLineInput[]
     counterparty: VouVersionedReferenceInput
-    counterpartyType: 'other-unit' | 'sales-partner'
+    counterpartyType: VouServiceCounterpartyType
     employee: VouAuxCurrentReferenceInput
     serviceContract: {
       capabilities?: readonly ('EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER')[]
@@ -832,11 +867,13 @@ export interface VouPayloadShapes {
     }
   }
   'service-acceptance': VouPayloadBase & {
+    operatingEntity?: VouAuxCurrentReferenceInput
     priorFact?: VouPriorFact
     serviceLines?: readonly VouServiceLineInput[]
     priorLineOrigins?: readonly VouPriorLineOrigin[]
     amount: string
     counterparty?: VouVersionedReferenceInput
+    counterpartyType?: VouServiceCounterpartyType
     employee: VouAuxCurrentReferenceInput
     serviceAcceptance: {
       contractDocumentId?: string
@@ -855,6 +892,29 @@ export type VouPayloadByEntity = {
 
 export type VouPayloadFor<Entity extends VouEntity> = VouPayloadShapes[Entity]
 export type VouPayload = VouPayloadByEntity['payload']
+export const vouPriorSaleContinuationTargets = {
+  'sale-order': 'sale-outbound',
+  'sale-outbound': 'sale-delivery',
+  'sale-delivery': 'sale-signoff',
+} as const
+export type VouPriorSaleContinuationEntity =
+  'sale-outbound' | 'sale-delivery' | 'sale-signoff'
+export type VouPriorSaleContinuation = {
+  [Entity in VouPriorSaleContinuationEntity]: {
+    entity: Entity
+    sourceEntity: 'sale-order' | 'sale-outbound' | 'sale-delivery'
+    sourceDocumentId: string
+    sourceDocumentNo: string
+    customerName: string
+    lines: readonly {
+      sourceLineId: string
+      productCode: string
+      productName: string
+      availableBaseQuantity: string
+    }[]
+    payload: VouPayloadFor<Entity>
+  }
+}[VouPriorSaleContinuationEntity]
 
 interface VouSubmissionCommandBase {
   action: SubmitAction
@@ -875,6 +935,7 @@ export interface VouSubmissionFacts {
   referencesValid: boolean
   periodOpen: boolean
   trustedSystemActor: boolean
+  priorSaleContinuation?: boolean
 }
 
 export type VouSubmissionErrorKey =
@@ -1085,8 +1146,6 @@ function versionedReferenceCandidateEntity(
   path: string,
   payload: VouPayload,
 ): VouReferenceCandidateEntity {
-  if (field === 'counterparty' && entity === 'service-acceptance')
-    return 'other-unit'
   if (field === 'counterparty') {
     const counterpartyType = (payload as unknown as Record<string, unknown>)[
       'counterpartyType'
@@ -1295,13 +1354,50 @@ function canonicalPayload<Entity extends VouEntity>(
       'sourceLines' in value
         ? value.sourceLines
         : (value as VouPayloadShapes['purchase-return']).returnLines
-    const historical = 'priorFact' in value && value.priorFact !== undefined
+    const historical =
+      (entity === 'purchase-inbound' || entity === 'purchase-return') &&
+      'priorFact' in value &&
+      value.priorFact !== undefined
     if (
       lines.some((line) =>
         historical
           ? line.priorAmount === undefined ||
             !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.priorAmount)
           : line.priorAmount !== undefined,
+      )
+    )
+      return undefined
+  }
+  if (
+    'sourceLines' in value &&
+    value.sourceLines.some((line) => line.priorStockLines !== undefined)
+  ) {
+    if (
+      entity !== 'sale-outbound' ||
+      !('priorFact' in value) ||
+      !value.priorFact ||
+      value.sourceLines.some(
+        (line) =>
+          line.priorStockLines !== undefined &&
+          (!line.priorStockLines.length ||
+            new Set(line.priorStockLines.map((row) => row.sourceLineKey))
+              .size !== line.priorStockLines.length),
+      )
+    )
+      return undefined
+  }
+  if (entity === 'sale-signoff') {
+    const signoff = value as VouPayloadShapes['sale-signoff']
+    if (
+      signoff.signoffLines.some(
+        (line) =>
+          (signoff.priorFact
+            ? line.priorAmount === undefined ||
+              !/^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(line.priorAmount)
+            : line.priorAmount !== undefined) ||
+          (line.lostBaseQuantity !== undefined &&
+            (!signoff.priorFact ||
+              !/^(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(line.lostBaseQuantity))),
       )
     )
       return undefined
@@ -1367,6 +1463,11 @@ function canonicalPayload<Entity extends VouEntity>(
     const service = value as VouPayloadShapes[
       'service-contract' | 'service-acceptance']
     if (
+      service.counterpartyType !== undefined &&
+      !vouServiceCounterpartyTypes.includes(service.counterpartyType)
+    )
+      return undefined
+    if (
       entity === 'service-contract'
         ? !service ||
           !('serviceContract' in service) ||
@@ -1380,6 +1481,25 @@ function canonicalPayload<Entity extends VouEntity>(
       return undefined
     const historical = service.priorFact !== undefined
     const lines = service.serviceLines
+    const customer = service.counterpartyType === 'customer'
+    if (
+      (customer &&
+        (!lines?.length ||
+          ((!('serviceAcceptance' in service) ||
+            !service.serviceAcceptance.contractDocumentId) &&
+            !service.operatingEntity))) ||
+      (historical &&
+        (entity === 'service-contract'
+          ? (service.priorFact?.sourceDocumentType === 'BB') !== customer
+          : (service.priorFact?.sourceDocumentType === 'BA') !== customer)) ||
+      (customer &&
+        'serviceAcceptance' in service &&
+        service.serviceAcceptance.settlementDirection !== 'RECEIVABLE') ||
+      (customer &&
+        'serviceContract' in service &&
+        service.serviceContract.requiresPrepayment === true)
+    )
+      return undefined
     if (
       (historical && (!lines || !lines.length)) ||
       (lines !== undefined &&
@@ -1448,7 +1568,7 @@ function canonicalPayload<Entity extends VouEntity>(
       return undefined
     if ('serviceContract' in service) {
       if (
-        (historical && service.counterpartyType !== 'other-unit') ||
+        (historical && service.counterpartyType === 'sales-partner') ||
         (service.counterpartyType === 'sales-partner' &&
           (lines ||
             service.serviceContract.requiresPrepayment !== undefined)) ||
@@ -1463,12 +1583,21 @@ function canonicalPayload<Entity extends VouEntity>(
       if (
         !historical ||
         !service.counterparty ||
+        service.counterpartyType === undefined ||
         service.parentEntity ||
         service.parentDocumentId ||
         lines?.some((line) => line.contractLineId !== undefined)
       )
         return undefined
+    } else if (service.counterpartyType === 'sales-partner') {
+      return undefined
     }
+    if (
+      'serviceAcceptance' in service &&
+      service.counterparty &&
+      service.counterpartyType === undefined
+    )
+      return undefined
     if (
       'priorLineOrigins' in service &&
       service.priorLineOrigins !== undefined
@@ -1601,6 +1730,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   ],
   'sale-pricing': ['priceLines'],
   'sale-order': [
+    'priorFact',
     'customer',
     'operatingEntity',
     'salesperson',
@@ -1610,9 +1740,10 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'creditOverrideReason',
     'specialApproval',
   ],
-  'sale-outbound': ['sourceLines'],
+  'sale-outbound': ['priorFact', 'sourceLines'],
   'sale-delivery': ['sourceLines', 'carrier', 'vehicle'],
   'sale-signoff': [
+    'priorFact',
     'customer',
     'expectedSolventContainers',
     'expectedResinContainers',
@@ -1725,6 +1856,7 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
   'bill-maturity': ['maturityType', 'billLines', 'billCashLines'],
   'intermediary-calculation': ['intermediaryCalculation'],
   'service-contract': [
+    'operatingEntity',
     'priorFact',
     'serviceLines',
     'counterparty',
@@ -1733,11 +1865,13 @@ const payloadAllowedFields: Readonly<Record<VouEntity, readonly string[]>> = {
     'serviceContract',
   ],
   'service-acceptance': [
+    'operatingEntity',
     'priorFact',
     'serviceLines',
     'priorLineOrigins',
     'amount',
     'counterparty',
+    'counterpartyType',
     'employee',
     'serviceAcceptance',
   ],
@@ -1753,6 +1887,10 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
               'priorFact',
               'serviceLines',
               'priorLineOrigins',
+              ...(entity === 'service-contract' ||
+              entity === 'service-acceptance'
+                ? ['operatingEntity']
+                : []),
               'salesperson',
               'purchaser',
               'carrier',
@@ -1769,7 +1907,8 @@ const payloadRequiredFields: Readonly<Record<VouEntity, readonly string[]>> =
               ['sourceLines', 'productLines', 'priorLineOrigins'].includes(
                 field,
               )) ||
-            (field === 'counterparty' && entity === 'service-acceptance') ||
+            ((field === 'counterparty' || field === 'counterpartyType') &&
+              entity === 'service-acceptance') ||
             (field === 'billCashLines' && entity !== 'bill-maturity') ||
             ((field === 'counterparty' || field === 'counterpartyType') &&
               entity === 'other-income')
@@ -1930,9 +2069,9 @@ function headerReferenceCandidatesForEntity(
   if (key === 'counterparty' && entity === 'asset-sale')
     return ['customer', 'other-unit']
   if (key === 'counterparty' && entity === 'service-acceptance')
-    return ['other-unit']
+    return vouServiceCounterpartyTypes
   if (key === 'counterparty' && entity === 'service-contract')
-    return ['other-unit', 'sales-partner']
+    return vouServiceCounterpartyTypes
   return headerReferenceCandidates[key] ?? []
 }
 const lineReferenceCandidates: Readonly<
@@ -2146,6 +2285,7 @@ export const vouLineFieldDescriptors: Readonly<
     { key: 'amount', required: true },
   ],
   signoff: [
+    { key: 'priorAmount', required: false },
     { key: 'sourceLineId', required: true },
     { key: 'signedBaseQuantity', required: true },
     { key: 'rejectedBaseQuantity', required: true },
@@ -2412,6 +2552,7 @@ const decimalFields = new Set([
   'baseQuantity',
   'unitPrice',
   'agreedAmount',
+  'priorAmount',
   'settlementSurcharge',
   'purchaseUnitPrice',
   'quantityPerContainer',
@@ -2996,13 +3137,13 @@ export const vouEntityInputDescriptors: Readonly<
         fields.push(fixedEnumDescriptor('counterpartyType', 'other-unit'))
       else if (
         scalar.key === 'counterpartyType' &&
-        entity === 'service-contract'
+        (entity === 'service-contract' || entity === 'service-acceptance')
       )
         fields.push({
           key: 'counterpartyType',
           kind: 'enum',
-          required: true,
-          enumValues: ['other-unit', 'sales-partner'],
+          required: entity === 'service-contract',
+          enumValues: vouServiceCounterpartyTypes,
         })
       else fields.push(scalarDescriptor(scalar.key, scalar.required))
     }
@@ -3126,7 +3267,13 @@ export function prepareVouSubmission(
     return { ok: false, errorKey: 'vou_invalid_command' }
   if (
     systemGeneratedSet.has(command.entity) &&
-    facts.trustedSystemActor !== true
+    facts.trustedSystemActor !== true &&
+    facts.priorSaleContinuation !== true &&
+    !(
+      'priorFact' in command.payload &&
+      command.payload.priorFact &&
+      command.entity in vouPriorDocumentTypes
+    )
   )
     return { ok: false, errorKey: 'vou_trusted_actor_required' }
   if (

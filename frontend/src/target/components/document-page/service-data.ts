@@ -5,6 +5,9 @@ import {
   type VouServiceLineInput,
   type ServiceContext,
   type VouPriorLineOrigin,
+  vouServiceCounterpartyTypes,
+  serviceCounterpartyContexts,
+  type VouServiceCounterpartyType,
 } from '@zerp/model'
 import { priorFactPayload, type PriorFactDraft } from './prior-fact-data.ts'
 import { ulid } from 'ulid'
@@ -38,10 +41,10 @@ export function serviceDraftContext(draft: ServiceDraft): ServiceContext {
   return draft.priorFact
     ? (`PRIOR_${draft.priorFact.sourceDocumentType}` as ServiceContext)
     : draft.entity === 'service-contract'
-      ? draft.counterpartyType === 'sales-partner'
-        ? 'SALES_PARTNER'
-        : 'OTHER_UNIT'
-      : 'CONTRACT'
+      ? serviceCounterpartyContexts[draft.counterpartyType]
+      : draft.counterpartyType === 'customer'
+        ? 'CUSTOMER_CONTRACT'
+        : 'CONTRACT'
 }
 export function setServiceContext(
   draft: ServiceDraft,
@@ -56,7 +59,21 @@ export function setServiceContext(
     employee: draft.employee,
     attachments: draft.attachments,
     counterpartyType:
-      context === 'SALES_PARTNER' ? 'sales-partner' : 'other-unit',
+      (Object.entries(serviceCounterpartyContexts).find(
+        ([, value]) => value === context,
+      )?.[0] as VouServiceCounterpartyType | undefined) ??
+      (context === 'CUSTOMER_CONTRACT' ||
+      context === 'PRIOR_BB' ||
+      context === 'PRIOR_BA'
+        ? 'customer'
+        : 'other-unit'),
+    settlementDirection:
+      context === 'CUSTOMER' ||
+      context === 'CUSTOMER_CONTRACT' ||
+      context === 'PRIOR_BB' ||
+      context === 'PRIOR_BA'
+        ? 'RECEIVABLE'
+        : 'PAYABLE',
     requiresPrepayment: context === 'PRIOR_AD',
     ...(historical
       ? {
@@ -86,7 +103,8 @@ export type ServiceDraft = {
   remark: string
   employee: VouCandidate | null
   counterparty: VouCandidate | null
-  counterpartyType: 'other-unit' | 'sales-partner'
+  operatingEntity: VouCandidate | null
+  counterpartyType: VouServiceCounterpartyType
   contract: VouCandidate | null
   origin: 'CURRENT' | 'HISTORICAL'
   capabilities: ('EXTERNAL_PART_TIME' | 'CHANNEL_PARTNER')[]
@@ -101,9 +119,10 @@ export type ServiceDraft = {
   acceptanceFact: string
   attachments: VouAttachmentMetadata[]
 }
-export const servicePartyOptions = (
-  ['other-unit', 'sales-partner'] as const
-).map((value) => ({ value, caption: snapshotEnums.counterpartyType![value]! }))
+export const servicePartyOptions = vouServiceCounterpartyTypes.map((value) => ({
+  value,
+  caption: snapshotEnums.counterpartyType![value]!,
+}))
 export const serviceDirectionOptions = (['PAYABLE', 'RECEIVABLE'] as const).map(
   (value) => ({ value, caption: snapshotEnums.settlementDirection![value]! }),
 )
@@ -121,6 +140,7 @@ export function emptyService(entity: ServiceEntity): ServiceDraft {
     remark: '',
     employee: null,
     counterparty: null,
+    operatingEntity: null,
     counterpartyType: 'other-unit',
     contract: null,
     origin: 'CURRENT',
@@ -141,7 +161,16 @@ export function servicePayload(
   draft: ServiceDraft,
 ): VouPayloadFor<ServiceEntity> {
   if (!draft.employee) throw new Error('请选择经办员工。')
+  if (
+    draft.counterpartyType === 'customer' &&
+    (draft.entity === 'service-contract' || !draft.contract) &&
+    !draft.operatingEntity
+  )
+    throw new Error('请选择客户服务的经营主体。')
   const base = {
+    ...(draft.operatingEntity
+      ? { operatingEntity: { objectId: draft.operatingEntity.objectId } }
+      : {}),
     businessDate: draft.businessDate,
     currency: draft.currency,
     remark: draft.remark,
@@ -210,7 +239,8 @@ export function servicePayload(
           : {}),
         ...(draft.applicableTo ? { applicableTo: draft.applicableTo } : {}),
         terms: draft.terms,
-        ...(draft.counterpartyType === 'other-unit'
+        ...(draft.counterpartyType !== 'sales-partner' &&
+        draft.counterpartyType !== 'customer'
           ? { requiresPrepayment: draft.requiresPrepayment }
           : {}),
       },
@@ -222,19 +252,24 @@ export function servicePayload(
   if (
     !draft.contract &&
     (!party ||
-      party.entity !== 'other-unit' ||
+      party.entity !== draft.counterpartyType ||
       !('approvalEntryId' in party) ||
       !party.approvalEntryId)
   )
-    throw new Error('请选择此前服务的其他单位。')
+    throw new Error('请选择此前服务的真实相对方。')
   if (
     !/^\d+(?:\.\d{1,2})?$/.test(draft.amount) ||
-    (!draft.priorFact && !/[1-9]/.test(draft.amount))
+    (!draft.priorFact &&
+      draft.counterpartyType !== 'customer' &&
+      !/[1-9]/.test(draft.amount))
   )
     throw new Error('结算金额必须大于零，最多两位小数。')
   return {
     ...base,
     amount: draft.amount,
+    ...(draft.contract && draft.counterpartyType === 'customer'
+      ? { counterpartyType: 'customer' as const }
+      : {}),
     ...(draft.priorFact &&
     draft.serviceLines.some((line) => line.originalReference)
       ? {
@@ -247,6 +282,7 @@ export function servicePayload(
       : {}),
     ...(!draft.contract && party && 'approvalEntryId' in party
       ? {
+          counterpartyType: draft.counterpartyType,
           counterparty: {
             objectId: party.objectId,
             approvalEntryId: party.approvalEntryId!,
@@ -275,6 +311,14 @@ export function cloneService(
     businessDate: payload.businessDate,
     currency: payload.currency,
     remark: payload.remark ?? '',
+    operatingEntity: payload.operatingEntity
+      ? {
+          entity: 'operating-entity' as const,
+          objectId: payload.operatingEntity.objectId,
+          code: '',
+          name: '已采用经营主体',
+        }
+      : null,
     employee: {
       entity: 'employee' as const,
       objectId: payload.employee.objectId,
@@ -295,6 +339,7 @@ export function cloneService(
       counterpartyType: payload.counterpartyType,
       counterparty: {
         entity: payload.counterpartyType,
+        paymentMethod: null,
         ...payload.counterparty,
         code: '',
         name: '已采用相对方',
@@ -308,6 +353,19 @@ export function cloneService(
   return {
     ...draft,
     ...payload.serviceAcceptance,
+    counterpartyType: payload.counterpartyType ?? 'other-unit',
+    counterparty:
+      payload.serviceAcceptance.contractDocumentId &&
+      payload.counterparty &&
+      payload.counterpartyType
+        ? {
+            entity: payload.counterpartyType,
+            paymentMethod: null,
+            ...payload.counterparty,
+            code: '',
+            name: '已采用相对方',
+          }
+        : null,
     amount: payload.amount,
     fulfillmentFact: payload.serviceAcceptance.fulfillmentFact ?? '',
     acceptanceFact: payload.serviceAcceptance.acceptanceFact ?? '',

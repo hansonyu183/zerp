@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, expect, it } from 'vitest'
 import ServiceContextEditor from '../../../src/target/components/direct-page/ServiceContextEditor.vue'
 import { useTargetSession } from '../../../src/target/session/vm.ts'
+import { servicePermissionContexts } from '@zerp/model'
 const options = [
   {
     id: 'read',
@@ -86,5 +87,30 @@ it('workflow choices stay separate and readonly viewing does not rewrite grants'
   await wrapper.setProps({ disabled: true })
   field.vm.$emit('update:modelValue', ['PRIOR_AH'])
   expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  wrapper.unmount()
+})
+it('allows an explicitly authorized action to select all explicitly authorized contract types', async () => {
+  const contexts = [...servicePermissionContexts('/vou/service-contract/query')]
+  expect(contexts).toHaveLength(7)
+  useTargetSession().serviceContexts = {
+    '/vou/service-contract/query': contexts,
+  }
+  const wrapper = mount(ServiceContextEditor, {
+    props: {
+      permissionIds: ['read'],
+      options,
+      modelValue: { read: ['OTHER_UNIT'] },
+      disabled: false,
+    },
+    global: { stubs },
+  })
+  const field = wrapper.findComponent({ name: 'FieldInput' })
+  expect(field.props('field').options).toHaveLength(contexts.length)
+  field.vm.$emit('update:modelValue', contexts)
+  expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([
+    { read: contexts },
+  ])
+  await wrapper.setProps({ modelValue: { read: contexts } })
+  expect(wrapper.emitted('validity')?.at(-1)).toEqual([true])
   wrapper.unmount()
 })

@@ -1,3 +1,13 @@
+import {
+  attachmentContentMatches,
+  attachmentMaxSizeBytes,
+  attachmentMaxCount,
+  type AttachmentMimeType,
+  type VouBlocker,
+  type VouPriorSaleDisposition,
+  type VouPriorSaleContinuation,
+  vouPriorSaleContinuationTargets,
+} from '@zerp/model'
 import { purchaseInboundAccess } from '../app/purchase-inbound-access.ts'
 import { serviceAccess } from '../app/service-access.ts'
 import {
@@ -50,6 +60,14 @@ import {
   type InvoiceEntity,
 } from './invoice.ts'
 import { intermediarySource } from './intermediary-source.ts'
+import {
+  validateSaleFulfillment,
+  readPriorSaleDisposition,
+  priorSaleContinuation,
+  readApprovedSaleOrderSource,
+  saleContinuationSourceLines,
+  saleSignoffUnapproveBlockers,
+} from './sale-fulfillment.ts'
 import { validateIntermediaryCalculation } from './intermediary-validation.ts'
 import {
   IntermediaryScriptService,
@@ -90,6 +108,7 @@ import {
   type VouSourceLineSourceEntity,
   type VouSourceLineTargetEntity,
   vouDocumentPrefixes,
+  vouServiceCounterpartyTypes,
   vouEntityInputDescriptors,
   vouListCapabilities,
   vouPayloadReferences,
@@ -211,6 +230,7 @@ export interface VouView {
   rejectedAt: string | null
   rejectionReason: string | null
   payload: VouPayload
+  priorSaleDisposition?: VouPriorSaleDisposition[]
   availableApprovalActions: ApprovalAction[]
   canDelete: boolean
 }
@@ -269,7 +289,7 @@ export interface VouAttachmentStageInput {
   stagingId: string
   fileId: string
   fileName: string
-  mimeType: 'application/pdf' | 'image/jpeg' | 'image/png'
+  mimeType: AttachmentMimeType
   size: number
   digest: string
   contentBase64: string
@@ -459,24 +479,6 @@ function payloadAmountMinor(payload: VouPayload): bigint {
   return 'amount' in payload ? (decimalToFixed(payload.amount, 2) ?? 0n) : 0n
 }
 
-function contentMatches(
-  mimeType: VouAttachmentStageInput['mimeType'],
-  content: Buffer,
-): boolean {
-  if (mimeType === 'application/pdf')
-    return content.subarray(0, 5).toString() === '%PDF-'
-  if (mimeType === 'image/png')
-    return content
-      .subarray(0, 8)
-      .equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-  return (
-    content[0] === 0xff &&
-    content[1] === 0xd8 &&
-    content[content.length - 2] === 0xff &&
-    content[content.length - 1] === 0xd9
-  )
-}
-
 function entryFromRow(row: {
   id: string
   entity: string
@@ -562,11 +564,12 @@ export class VouService implements WflVouPort {
     const content = Buffer.from(input.contentBase64, 'base64')
     if (
       content.length !== input.size ||
-      input.size < 1 ||
-      input.size > 10_485_760
+      !Number.isInteger(input.size) ||
+      input.size < 0 ||
+      input.size > attachmentMaxSizeBytes
     )
       throw new VouApplicationError('vou_attachment_size_invalid')
-    if (!contentMatches(input.mimeType, content))
+    if (!attachmentContentMatches(input.mimeType, content))
       throw new VouApplicationError('vou_attachment_type_invalid')
     const digest = createHash('sha256').update(content).digest('hex')
     if (digest !== input.digest)
@@ -587,6 +590,7 @@ export class VouService implements WflVouPort {
           if (
             existing.owner_user_id !== actor.id ||
             existing.file_id !== input.fileId ||
+            existing.file_name !== input.fileName ||
             existing.digest !== digest ||
             existing.mime_type !== input.mimeType ||
             existing.size_bytes !== input.size
@@ -756,7 +760,7 @@ export class VouService implements WflVouPort {
       )
       const found = await sql<{
         file_name: string
-        mime_type: 'application/pdf' | 'image/jpeg' | 'image/png'
+        mime_type: AttachmentMimeType
         size_bytes: number
         digest: string
         storage_key: string
@@ -1072,6 +1076,9 @@ export class VouService implements WflVouPort {
       currentRevision: document ? String(document.stable_revision) : null,
       periodOpen: locked === undefined,
       trustedSystemActor,
+      priorSaleContinuation:
+        !trustedSystemActor &&
+        Boolean(await priorSaleContinuation(tx, entity, input.payload)),
     }
     const preflight = prepareVouSubmission(
       {
@@ -1086,6 +1093,7 @@ export class VouService implements WflVouPort {
     )
     if (!preflight.ok) throw new VouApplicationError(preflight.errorKey)
     await validatePriorFact(tx, entity, input.documentId, input.payload)
+    await validateSaleFulfillment(tx, entity, input.documentId, input.payload)
     // Client display values are never authoritative for a new AUX adoption.
     input = { ...input, payload: structuredClone(input.payload) }
     let intermediaryDependencies: string[] = []
@@ -1104,7 +1112,29 @@ export class VouService implements WflVouPort {
         )
       ).dependencies
     }
-    await this.adoptService(tx, entity, input.documentId, input.payload, true)
+    await this.adoptService(
+      tx,
+      entity,
+      input.documentId,
+      input.payload,
+      true,
+      actor,
+      trustedSystemActor && actor.trusted !== true
+        ? workflowCreatePermission(entity)
+        : `/vou/${entity}/${action}`,
+    )
+    if (entity === 'service-acceptance') {
+      await assertPayloadCustomerAccess(tx, actor, entity, input.payload)
+      await assertServicePayloadAccess(
+        tx,
+        actor,
+        trustedSystemActor && actor.trusted !== true
+          ? workflowCreatePermission(entity)
+          : `/vou/${entity}/${action}`,
+        entity,
+        input.payload,
+      )
+    }
     await this.adoptProduction(tx, entity, input.documentId, input.payload)
     if (entity === 'inventory-count' && 'inventoryCountLines' in input.payload)
       await this.validateInventoryCount(tx, input.payload)
@@ -1185,6 +1215,7 @@ export class VouService implements WflVouPort {
         )
         if (
           !('operatingEntity' in source.payload) ||
+          !source.payload.operatingEntity ||
           source.payload.operatingEntity.objectId !==
             vehicle.carrier.operatingEntityId
         )
@@ -1405,10 +1436,11 @@ export class VouService implements WflVouPort {
         'purchase-inbound',
         'sale-return',
         'purchase-return',
+        'service-acceptance',
       ].includes(entity)
     )
       await lockInvoiceAmounts(tx)
-    const blockers =
+    const blockers: VouBlocker[] =
       action === 'unapprove'
         ? await this.downstreamBlockers(tx, input.documentId)
         : []
@@ -1429,10 +1461,24 @@ export class VouService implements WflVouPort {
       )
     }
     const historical = priorFact(persistedPayload) !== undefined
+    if (action === 'approve' || action === 'unreject')
+      await validateSaleFulfillment(
+        tx,
+        entity,
+        input.documentId,
+        persistedPayload,
+      )
     if (historical) {
       await assertPriorFactEditable(tx)
-      if (action === 'approve' || action === 'unreject')
+      if (action === 'approve' || action === 'unreject') {
         await validatePriorFact(tx, entity, input.documentId, persistedPayload)
+        const blockers = await this.validatePriorSaleStockLines(
+          tx,
+          persistedPayload,
+        )
+        if (blockers.length)
+          throw new VouApplicationError('vou_reference_unavailable', blockers)
+      }
     }
     if (
       (action === 'approve' || action === 'unreject') &&
@@ -1480,6 +1526,10 @@ export class VouService implements WflVouPort {
         persistedPayload.businessDate,
         persistedPayload.intermediaryCalculation,
       )
+    if (action === 'unapprove' && entity === 'sale-signoff')
+      blockers.push(
+        ...(await saleSignoffUnapproveBlockers(tx, input.documentId)),
+      )
     if (action === 'unapprove' && entity === 'purchase-return')
       blockers.push(...(await purchaseReturnAllocationBlockers(tx, row.id)))
     if (action === 'unapprove' && entity === 'intermediary-calculation') {
@@ -1505,6 +1555,8 @@ export class VouService implements WflVouPort {
         input.documentId,
         persistedPayload,
         false,
+        actor,
+        `/vou/${entity}/${action}`,
       )
     if (action === 'approve' || action === 'unapprove')
       await this.validateServicePrepayment(
@@ -1662,6 +1714,128 @@ export class VouService implements WflVouPort {
         tx,
       )
     return this.readView(tx, entity, input.documentId, actor)
+  }
+
+  async queryPriorSaleContinuation(
+    entity: 'sale-order' | 'sale-outbound' | 'sale-delivery',
+    input: { documentId: string; businessDate: string },
+    actor: ApprovalActor,
+  ): Promise<VouPriorSaleContinuation | null> {
+    requirePermission(actor, `/vou/${entity}/get`)
+    const target = vouPriorSaleContinuationTargets[entity]
+    if (
+      actor.trusted !== true &&
+      !actor.permissions.includes(`/vou/${target}/submit-new`)
+    )
+      return null
+    return this.db.transaction().execute(async (tx) => {
+      const source = await this.readView(tx, entity, input.documentId, actor)
+      if (source.status !== 'APPROVED') return null
+      const base = {
+        businessDate: input.businessDate,
+        currency: source.payload.currency,
+        attachments: [],
+        parentEntity: entity,
+        parentDocumentId: input.documentId,
+      }
+      const root = await readApprovedSaleOrderSource(tx, target, base)
+      if (!root?.fact) return null
+      const lines = await saleContinuationSourceLines(
+        tx,
+        target,
+        source.submissionId,
+        input.documentId,
+      )
+      if (!lines.length) return null
+      const order = (await this.readPayload(
+        tx,
+        'sale-order',
+        root.orderApprovalEntryId,
+      )) as VouPayloadFor<'sale-order'>
+      const adoptedLabels = await tx
+        .selectFrom('vou_product_line_snapshots as line')
+        .innerJoin('vou_reference_snapshots as product', (join) =>
+          join
+            .onRef('product.approval_entry_id', '=', 'line.approval_entry_id')
+            .onRef('product.line_no', '=', 'line.line_no')
+            .on('product.field', '=', 'product')
+            .on('product.item_no', '=', 0),
+        )
+        .innerJoin(
+          'dcl_subjects as identity',
+          'identity.id',
+          'product.object_id',
+        )
+        .select([
+          'line.line_id',
+          'identity.code as reference_code',
+          'product.reference_name',
+        ])
+        .where('line.approval_entry_id', '=', root.orderApprovalEntryId)
+        .execute()
+      const displayLines = lines.map((line) => {
+        const product = order.productLines.find(
+          (item) => item.lineId === line.sourceLineId,
+        )?.product
+        if (!product)
+          throw new VouApplicationError('vou_source_line_unavailable')
+        const label = adoptedLabels.find(
+          (item) => item.line_id === line.sourceLineId,
+        )
+        return {
+          sourceLineId: line.sourceLineId,
+          productCode: label?.reference_code ?? '',
+          productName: label?.reference_name ?? '',
+          availableBaseQuantity: line.baseQuantity,
+        }
+      })
+      const customer = await tx
+        .selectFrom('vou_reference_snapshots as reference')
+        .innerJoin(
+          'dcl_customer_versions as version',
+          'version.approval_entry_id',
+          'reference.approval_reference_id',
+        )
+        .select('version.display_name as reference_name')
+        .where('reference.approval_entry_id', '=', root.orderApprovalEntryId)
+        .where('reference.field', '=', 'customer')
+        .where('reference.line_no', '=', 0)
+        .where('reference.item_no', '=', 0)
+        .executeTakeFirst()
+      const sourceIdentity = {
+        sourceEntity: entity,
+        sourceDocumentId: input.documentId,
+        sourceDocumentNo: source.documentNo,
+        customerName: customer?.reference_name ?? '',
+        lines: displayLines,
+      }
+      const next: VouPriorSaleContinuation =
+        target === 'sale-signoff'
+          ? {
+              ...sourceIdentity,
+              entity: target,
+              payload: {
+                ...base,
+                customer: order.customer,
+                expectedSolventContainers: 0,
+                expectedResinContainers: 0,
+                returnedSolventContainers: 0,
+                returnedResinContainers: 0,
+                signoffLines: lines.map((line) => ({
+                  sourceLineId: line.sourceLineId,
+                  signedBaseQuantity: line.baseQuantity,
+                  rejectedBaseQuantity: '0',
+                })),
+              },
+            }
+          : {
+              ...sourceIdentity,
+              entity: target,
+              payload: { ...base, sourceLines: lines },
+            }
+      await validateSaleFulfillment(tx, target, '', next.payload)
+      return next
+    })
   }
 
   async get(entity: VouEntity, documentId: string, actor: ApprovalActor) {
@@ -2029,7 +2203,7 @@ export class VouService implements WflVouPort {
   async serviceContractLines(contractDocumentId: string, actor: ApprovalActor) {
     const eligible = await sql<{ id: string }>`
       SELECT entry.id FROM approval_entries entry
-      JOIN vou_reference_snapshots party ON party.approval_entry_id = entry.id AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0 AND party.reference_entity = 'other-unit'
+      JOIN vou_reference_snapshots party ON party.approval_entry_id = entry.id AND party.field = 'counterparty' AND party.line_no = 0 AND party.item_no = 0 AND party.reference_entity IN ('supplier','other-unit','customer')
       WHERE entry.domain = 'vou' AND entry.entity = 'service-contract' AND entry.subject_id = ${contractDocumentId} AND entry.status = 'APPROVED'
         AND NOT EXISTS (SELECT 1 FROM vou_prior_facts prior WHERE prior.approval_entry_id = entry.id AND prior.source_closed)
         AND ${documentCustomerPredicate(await customerAccess(this.db, actor), sql`entry.subject_id`)}
@@ -2042,6 +2216,10 @@ export class VouService implements WflVouPort {
       eligible.rows[0].id,
     )) as VouPayloadFor<'service-contract'>
     return {
+      counterpartyType: contract.counterpartyType,
+      ...(contract.operatingEntity
+        ? { operatingEntity: { objectId: contract.operatingEntity.objectId } }
+        : {}),
       items: (contract.serviceLines ?? []).map(
         ({ sourceLineKey: _source, contractLineId: _contract, ...line }) =>
           line,
@@ -2478,7 +2656,7 @@ export class VouService implements WflVouPort {
       case 'bill':
         return `SELECT r.id AS object_id, NULL::varchar AS approval_entry_id, NULL::varchar AS customer_id, r.bill_no AS code, r.bill_no AS name FROM acc_bill_registers r WHERE r.status = 'AVAILABLE' AND EXISTS (SELECT 1 FROM acc_bill_book_values v JOIN acc_books b ON b.id = v.book_id JOIN approval_entries a ON a.subject_id = b.id AND a.domain = 'vou' AND a.entity = 'opening' AND a.status = 'APPROVED' WHERE v.bill_id = r.id AND b.control_book)`
       case 'service-contract':
-        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED' JOIN vou_reference_snapshots party ON party.approval_entry_id = approval.id AND party.field = 'counterparty' AND party.reference_entity = 'other-unit'`
+        return `SELECT document.id AS object_id, approval.id AS approval_entry_id, NULL::varchar AS customer_id, document.document_no AS code, document.document_no AS name FROM vou_documents document JOIN approval_entries approval ON approval.subject_id = document.id AND approval.domain = 'vou' AND approval.entity = 'service-contract' AND approval.status = 'APPROVED' JOIN vou_reference_snapshots party ON party.approval_entry_id = approval.id AND party.field = 'counterparty' AND party.reference_entity IN ('supplier','other-unit')`
     }
   }
 
@@ -2910,6 +3088,15 @@ export class VouService implements WflVouPort {
       rejectedAt: row.rejected_at?.toISOString() ?? null,
       rejectionReason: row.rejection_reason,
       payload,
+      ...(priorFact(payload) && entity === 'sale-signoff'
+        ? {
+            priorSaleDisposition: await readPriorSaleDisposition(
+              executor,
+              entity,
+              payload,
+            ),
+          }
+        : {}),
       availableApprovalActions: availableApprovalActions(entry, presentedActor),
       canDelete:
         (row.status === 'PENDING' || row.status === 'REJECTED') &&
@@ -2924,7 +3111,7 @@ export class VouService implements WflVouPort {
     payload: VouPayload,
     ownerId: string,
   ) {
-    if (payload.attachments.length > 10)
+    if (payload.attachments.length > attachmentMaxCount)
       throw new VouApplicationError('vou_attachment_limit_exceeded')
     for (const attachment of payload.attachments) {
       const row = await executor
@@ -3024,6 +3211,8 @@ export class VouService implements WflVouPort {
     documentId: string,
     payload: VouPayload,
     newAdoption: boolean,
+    actor: ApprovalActor,
+    accessPath: string,
   ) {
     if (
       entity === 'other-payment' &&
@@ -3053,8 +3242,8 @@ export class VouService implements WflVouPort {
       if (
         !contract.serviceContract.requiresPrepayment ||
         contract.priorFact?.sourceClosed ||
-        contract.counterpartyType !== 'other-unit' ||
-        payment.counterpartyType !== 'other-unit' ||
+        !['supplier', 'other-unit'].includes(contract.counterpartyType) ||
+        payment.counterpartyType !== contract.counterpartyType ||
         payment.counterparty.objectId !== contract.counterparty.objectId ||
         payload.currency !== contract.currency
       )
@@ -3062,6 +3251,14 @@ export class VouService implements WflVouPort {
       return
     }
     if (entity !== 'service-contract' && entity !== 'service-acceptance') return
+    if (
+      'counterpartyType' in payload &&
+      payload.counterpartyType !== undefined &&
+      !vouServiceCounterpartyTypes.some(
+        (kind) => kind === payload.counterpartyType,
+      )
+    )
+      throw new VouApplicationError('vou_invalid_payload')
     if ('serviceLines' in payload && payload.serviceLines) {
       if (
         entity === 'service-acceptance' &&
@@ -3099,6 +3296,7 @@ export class VouService implements WflVouPort {
       if (
         !priorFact(payload) ||
         !payload.counterparty ||
+        payload.counterpartyType === undefined ||
         !payload.serviceLines?.length ||
         payload.parentEntity ||
         payload.parentDocumentId ||
@@ -3131,7 +3329,26 @@ export class VouService implements WflVouPort {
       'service-contract',
       entry.id,
     )) as VouPayloadFor<'service-contract'>
-    if (contract.counterpartyType !== 'other-unit')
+    await assertDocumentCustomerAccess(tx, actor, acceptance.contractDocumentId)
+    await assertServicePayloadAccess(tx, actor, accessPath, entity, {
+      ...payload,
+      counterpartyType: contract.counterpartyType,
+    } as VouPayload)
+    if (
+      !['supplier', 'other-unit', 'customer'].includes(
+        contract.counterpartyType,
+      )
+    )
+      throw new VouApplicationError('vou_reference_unavailable')
+    if (
+      (payload.counterpartyType !== undefined &&
+        payload.counterpartyType !== contract.counterpartyType) ||
+      (payload.counterparty &&
+        (payload.counterparty.objectId !== contract.counterparty.objectId ||
+          (payload.counterparty.approvalEntryId !== undefined &&
+            payload.counterparty.approvalEntryId !==
+              contract.counterparty.approvalEntryId)))
+    )
       throw new VouApplicationError('vou_reference_unavailable')
     if (!priorFact(payload) && contract.priorFact?.sourceClosed)
       throw new VouApplicationError('vou_prior_fact_source_closed')
@@ -3150,7 +3367,9 @@ export class VouService implements WflVouPort {
       throw new VouApplicationError('vou_prior_fact_invalid')
     if (
       amount === null ||
-      (priorFact(payload) ? amount < 0n : amount <= 0n) ||
+      (priorFact(payload) || contract.counterpartyType === 'customer'
+        ? amount < 0n
+        : amount <= 0n) ||
       payload.currency !== contract.currency ||
       acceptance.serviceDate > acceptance.acceptanceDate ||
       (contract.serviceContract.applicableFrom &&
@@ -3159,6 +3378,18 @@ export class VouService implements WflVouPort {
         acceptance.serviceDate > contract.serviceContract.applicableTo)
     )
       throw new VouApplicationError('vou_invalid_payload')
+    if (contract.counterpartyType === 'customer') {
+      if (
+        !contract.operatingEntity ||
+        !contract.serviceLines?.length ||
+        acceptance.settlementDirection !== 'RECEIVABLE' ||
+        (payload.operatingEntity &&
+          payload.operatingEntity.objectId !==
+            contract.operatingEntity.objectId)
+      )
+        throw new VouApplicationError('vou_invalid_payload')
+      payload.operatingEntity = { ...contract.operatingEntity }
+    }
     const contracted = contract.serviceLines
     if (contracted?.length) {
       if (!payload.serviceLines?.length)
@@ -3247,6 +3478,7 @@ export class VouService implements WflVouPort {
     }
     payload.parentEntity = 'service-contract'
     payload.parentDocumentId = acceptance.contractDocumentId
+    payload.counterpartyType = contract.counterpartyType
     payload.counterparty = {
       ...contract.counterparty,
       selectionOrigin: 'HISTORICAL',
@@ -3748,6 +3980,7 @@ export class VouService implements WflVouPort {
           })
       }
     blockers.push(
+      ...(await this.validatePriorSaleStockLines(transaction, payload)),
       ...(await this.validateProductMeasurementUnits(transaction, payload)),
     )
     if ('paymentMethod' in payload)
@@ -3814,6 +4047,93 @@ export class VouService implements WflVouPort {
         objectId: selected?.objectId ?? expected?.objectId ?? '',
         approvalEntryId: null,
       })
+    return blockers
+  }
+
+  private async validatePriorSaleStockLines(
+    tx: Transaction<DB>,
+    payload: VouPayload,
+  ): Promise<VouReferenceBlocker[]> {
+    if (
+      !('sourceLines' in payload) ||
+      !payload.sourceLines.some((line) => line.priorStockLines !== undefined)
+    )
+      return []
+    if (
+      !priorFact(payload) ||
+      payload.parentEntity !== 'sale-order' ||
+      !payload.parentDocumentId
+    )
+      throw new VouApplicationError('vou_invalid_payload')
+    const parent = await tx
+      .selectFrom('approval_entries')
+      .select('id')
+      .where('subject_id', '=', payload.parentDocumentId)
+      .where('entity', '=', 'sale-order')
+      .where('status', '=', 'APPROVED')
+      .executeTakeFirst()
+    if (!parent) throw new VouApplicationError('vou_source_line_unavailable')
+    const order = (await this.readPayload(
+      tx,
+      'sale-order',
+      parent.id,
+    )) as VouPayloadFor<'sale-order'>
+    const blockers: VouReferenceBlocker[] = []
+    const sourceKeys = new Set<string>()
+    for (const [index, line] of payload.sourceLines.entries()) {
+      const original = order.productLines.find(
+        (row) => row.lineId === line.sourceLineId,
+      )
+      if (!original)
+        throw new VouApplicationError('vou_source_line_unavailable')
+      const materials = new Set(
+        original.formula?.components.map((row) => row.material.objectId) ?? [
+          original.product.objectId,
+        ],
+      )
+      for (const [stockIndex, stock] of (
+        line.priorStockLines ?? []
+      ).entries()) {
+        if (
+          sourceKeys.has(stock.sourceLineKey) ||
+          !materials.has(stock.product.objectId)
+        )
+          throw new VouApplicationError('vou_source_line_unavailable')
+        sourceKeys.add(stock.sourceLineKey)
+        const product = await this.quantityProduct(tx, stock.product.objectId)
+        const conversion = product.unit_conversions.find((row) =>
+          matchesProductUnitSnapshot(row.unit, stock.quantity.enteredUnit),
+        )
+        if (
+          !['RAW_MATERIAL', 'PACKAGING'].includes(product.behavior_profile) ||
+          !conversion
+        ) {
+          blockers.push({
+            kind: 'REFERENCE',
+            field: `sourceLines[${index}].priorStockLines[${stockIndex}]`,
+            entity: 'product',
+            objectId: stock.product.objectId,
+            approvalEntryId: null,
+          })
+          continue
+        }
+        const entered = decimalToFixed(stock.quantity.enteredQuantity, 6),
+          base = decimalToFixed(stock.quantity.baseQuantity, 6),
+          factor = decimalToFixed(conversion.factor ?? undefined, 18),
+          dispatched = decimalToFixed(line.baseQuantity, 6)
+        if (
+          entered === null ||
+          base === null ||
+          factor === null ||
+          factor <= 0n ||
+          !dispatched ||
+          !base ||
+          base > 0n !== dispatched > 0n ||
+          entered * factor !== base * 10n ** 18n
+        )
+          throw new VouApplicationError('vou_invalid_payload')
+      }
+    }
     return blockers
   }
 
@@ -3982,9 +4302,12 @@ export class VouService implements WflVouPort {
         })
         continue
       }
+      const validInputPrecision = priorFact(payload)
+        ? /^-?(?:0|[1-9]\d*)(?:\.\d{1,6})?$/.test(fact.quantity.enteredQuantity)
+        : isInputQuantity(fact.quantity.enteredQuantity)
       if (
         !preservedFormulaQuantities.has(fact.quantity) &&
-        !isInputQuantity(fact.quantity.enteredQuantity)
+        !validInputPrecision
       )
         throw new VouApplicationError('vou_invalid_payload')
     }
@@ -4626,13 +4949,48 @@ export class VouService implements WflVouPort {
             ${decimalToFixed(line.formula?.output.baseQuantity, 6)}
           )
         `.execute(transaction)
+        // Product input carries only stable identity. Freeze the display version
+        // here, in the same transaction that validates the adopted product.
+        const saleProduct =
+          entity === 'sale-order'
+            ? await transaction
+                .selectFrom('approval_entries as adopted')
+                .innerJoin(
+                  'dcl_product_versions as version',
+                  'version.approval_entry_id',
+                  'adopted.id',
+                )
+                .innerJoin(
+                  'dcl_subjects as identity',
+                  'identity.id',
+                  'adopted.subject_id',
+                )
+                .select(['adopted.id', 'identity.code', 'version.name'])
+                .where('adopted.domain', '=', 'dcl')
+                .where('adopted.entity', '=', 'product')
+                .where('adopted.subject_id', '=', line.product.objectId)
+                .where('adopted.status', '=', 'APPROVED')
+                .orderBy('adopted.version_no', 'desc')
+                .executeTakeFirst()
+            : undefined
+        if (entity === 'sale-order' && !saleProduct)
+          throw new VouApplicationError('vou_reference_unavailable')
         await this.writeReferenceSnapshot(
           transaction,
           approvalEntryId,
           'product',
           lineNo,
           0,
-          line.product,
+          saleProduct
+            ? {
+                objectId: line.product.objectId,
+                approvalEntryId: saleProduct.id,
+                selectionOrigin: 'CURRENT',
+                entity: 'product',
+                code: saleProduct.code!,
+                name: saleProduct.name,
+              }
+            : line.product,
         )
         for (const [componentIndex, component] of (
           line.formula?.components ?? []
@@ -4685,10 +5043,10 @@ export class VouService implements WflVouPort {
       for (const [index, line] of payload.signoffLines.entries())
         await sql`
           INSERT INTO vou_signoff_line_snapshots (
-            approval_entry_id, line_no, source_line_id, signed_quantity_micros, rejected_quantity_micros, remark
+            approval_entry_id, line_no, source_line_id, signed_quantity_micros, rejected_quantity_micros, prior_lost_quantity_micros, prior_amount_minor, remark
           ) VALUES (
             ${approvalEntryId}, ${index + 1}, ${line.sourceLineId},
-            ${decimalToFixed(line.signedBaseQuantity, 6)!}, ${decimalToFixed(line.rejectedBaseQuantity, 6)!}, ${line.remark ?? null}
+            ${decimalToFixed(line.signedBaseQuantity, 6)!}, ${decimalToFixed(line.rejectedBaseQuantity, 6)!}, ${line.lostBaseQuantity === undefined ? null : decimalToFixed(line.lostBaseQuantity, 6)!}, ${line.priorAmount === undefined ? null : decimalToFixed(line.priorAmount, 2)!}, ${line.remark ?? null}
           )
         `.execute(transaction)
     if ('returnLines' in payload)
@@ -4930,14 +5288,15 @@ export class VouService implements WflVouPort {
     lines: readonly {
       sourceLineId: string
       priorAmount?: string
+      priorStockLines?: VouPayloadFor<'sale-outbound'>['sourceLines'][number]['priorStockLines']
       baseQuantity: string
       remark?: string
     }[],
   ) {
     for (const [index, line] of lines.entries())
       await sql`
-        INSERT INTO vou_source_line_snapshots (approval_entry_id, line_no, source_line_id, base_quantity_micros, prior_amount_minor, remark)
-        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.priorAmount === undefined ? null : decimalToFixed(line.priorAmount, 2)!}, ${line.remark ?? null})
+        INSERT INTO vou_source_line_snapshots (approval_entry_id, line_no, source_line_id, base_quantity_micros, prior_amount_minor, prior_stock_lines, remark)
+        VALUES (${approvalEntryId}, ${index + 1}, ${line.sourceLineId}, ${decimalToFixed(line.baseQuantity, 6)!}, ${line.priorAmount === undefined ? null : decimalToFixed(line.priorAmount, 2)!}, ${line.priorStockLines === undefined ? null : JSON.stringify(line.priorStockLines)}::jsonb, ${line.remark ?? null})
       `.execute(transaction)
   }
 
@@ -4976,7 +5335,9 @@ export class VouService implements WflVouPort {
         0,
         0,
         field === 'counterparty' &&
-          (entity === 'asset-sale' || entity === 'service-contract')
+          (entity === 'asset-sale' ||
+            entity === 'service-contract' ||
+            entity === 'service-acceptance')
           ? { ...reference, entity: candidateEntity }
           : reference,
       )
@@ -5362,6 +5723,40 @@ export class VouService implements WflVouPort {
     payload: VouPayload,
     actor: ApprovalActor,
   ): Promise<void> {
+    if (
+      entity === 'service-acceptance' &&
+      'serviceAcceptance' in payload &&
+      payload.counterpartyType === 'customer'
+    ) {
+      if (!payload.counterparty)
+        throw new VouApplicationError('vou_invalid_payload')
+      const amount = decimalToFixed(payload.amount, 8)
+      if (amount === null || amount < 0n)
+        throw new VouApplicationError('vou_invalid_payload')
+      if (amount > 0n) {
+        const limit = await sql<{
+          credit_limit: string
+        }>`SELECT item->>'amount' AS credit_limit FROM dcl_customer_versions customer, jsonb_array_elements(customer.credit_limits) item WHERE customer.approval_entry_id=${payload.counterparty.approvalEntryId} AND item->>'currency'=${payload.currency} FOR UPDATE OF customer`.execute(
+          tx,
+        )
+        if (limit.rows[0]) {
+          const ceiling = decimalToFixed(limit.rows[0].credit_limit, 8)
+          if (ceiling === null)
+            throw new VouApplicationError('vou_invalid_payload')
+          const occupied = await this.controlBalances().customerCreditOccupancy(
+            tx,
+            {
+              customerId: payload.counterparty.objectId,
+              currency: payload.currency,
+              asOfDate: this.businessDateToday(),
+            },
+          )
+          if (occupied + amount > ceiling)
+            throw new VouApplicationError('vou_credit_limit_exceeded')
+        }
+      }
+      return
+    }
     if (
       ![
         'sale-order',
@@ -5912,7 +6307,10 @@ export class VouService implements WflVouPort {
           : {}),
         productLines: productLines.map((line) => ({
           lineId: line.line_id,
-          product: reference('product', line.line_no),
+          product:
+            entity === 'sale-order'
+              ? { objectId: reference('product', line.line_no).objectId }
+              : reference('product', line.line_no),
           enteredQuantity: fixed(line.entered_quantity_micros, 6),
           enteredUnit: {
             objectId: line.entered_unit_id,
@@ -6012,6 +6410,9 @@ export class VouService implements WflVouPort {
       const sourceLines = await rows<{
         source_line_id: string
         prior_amount_minor: string | null
+        prior_stock_lines:
+          | VouPayloadFor<'sale-outbound'>['sourceLines'][number]['priorStockLines']
+          | null
         base_quantity_micros: string
         remark: string | null
       }>('vou_source_line_snapshots')
@@ -6032,6 +6433,9 @@ export class VouService implements WflVouPort {
         sourceLines: sourceLines.map((line) => ({
           sourceLineId: line.source_line_id,
           baseQuantity: fixed(line.base_quantity_micros, 6),
+          ...(line.prior_stock_lines !== null
+            ? { priorStockLines: line.prior_stock_lines }
+            : {}),
           ...(line.prior_amount_minor !== null
             ? { priorAmount: fixed(line.prior_amount_minor, 2) }
             : {}),
@@ -6059,6 +6463,8 @@ export class VouService implements WflVouPort {
         source_line_id: string
         signed_quantity_micros: string
         rejected_quantity_micros: string
+        prior_lost_quantity_micros: string | null
+        prior_amount_minor: string | null
         remark: string | null
       }>('vou_signoff_line_snapshots')
       return {
@@ -6075,6 +6481,12 @@ export class VouService implements WflVouPort {
           sourceLineId: line.source_line_id,
           signedBaseQuantity: fixed(line.signed_quantity_micros, 6),
           rejectedBaseQuantity: fixed(line.rejected_quantity_micros, 6),
+          ...(line.prior_lost_quantity_micros === null
+            ? {}
+            : { lostBaseQuantity: fixed(line.prior_lost_quantity_micros, 6) }),
+          ...(line.prior_amount_minor === null
+            ? {}
+            : { priorAmount: fixed(line.prior_amount_minor, 2) }),
           ...(line.remark ? { remark: line.remark } : {}),
         })),
       } as unknown as VouPayload
@@ -6244,6 +6656,9 @@ export class VouService implements WflVouPort {
         ...base,
         counterparty,
         counterpartyType,
+        ...(refs.has('operatingEntity:0:0')
+          ? { operatingEntity: reference('operatingEntity') }
+          : {}),
         employee: reference('employee'),
         ...(await this.readServiceLineFields(executor, approvalEntryId)),
         serviceContract: {
@@ -6269,10 +6684,16 @@ export class VouService implements WflVouPort {
           executor,
         )
       ).rows[0]!
+      const { entity: counterpartyType, ...counterparty } =
+        reference('counterparty')
       return {
         ...base,
         amount: amount(),
-        counterparty: reference('counterparty'),
+        counterparty,
+        counterpartyType,
+        ...(refs.has('operatingEntity:0:0')
+          ? { operatingEntity: reference('operatingEntity') }
+          : {}),
         employee: reference('employee'),
         ...(await this.readServiceLineFields(executor, approvalEntryId)),
         serviceAcceptance: {
@@ -6946,7 +7367,7 @@ export class VouService implements WflVouPort {
       file_id: string
       staging_id: string
       file_name: string
-      mime_type: 'application/pdf' | 'image/jpeg' | 'image/png'
+      mime_type: AttachmentMimeType
       size_bytes: number
       digest: string
     }>`
@@ -6982,7 +7403,7 @@ export class VouService implements WflVouPort {
       const content = await this.attachmentStore.read(row.storage_key)
       if (
         content.length !== row.size_bytes ||
-        !contentMatches(
+        !attachmentContentMatches(
           row.mime_type as VouAttachmentStageInput['mimeType'],
           content,
         ) ||

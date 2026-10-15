@@ -303,6 +303,7 @@ export function registerAppRoutes(
     } catch (error) {
       if (error instanceof SessionError) return sessionFailure(error, requestId)
       if (
+        error instanceof VouApplicationError ||
         error instanceof AccApplicationError ||
         error instanceof WflApplicationError ||
         error instanceof ApprovalPersistenceError ||
@@ -400,10 +401,11 @@ export function registerAppRoutes(
     }),
     dclArchive: dclArchiveHandler,
     archiveAttachments: {
-      read: async (context) =>
+      read: async (entity, context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            dclArchives!.readCustomerAttachment(
+            dclArchives!.readArchiveAttachment(
+              entity,
               context.req.valid('json'),
               actor,
               'bob',
@@ -411,10 +413,11 @@ export function registerAppRoutes(
           )) as never,
           200,
         ),
-      submissionRead: async (context) =>
+      submissionRead: async (entity, context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            dclArchives!.readCustomerAttachment(
+            dclArchives!.readArchiveAttachment(
+              entity,
               context.req.valid('json'),
               actor,
               'dcl',
@@ -422,20 +425,21 @@ export function registerAppRoutes(
           )) as any,
           200,
         ),
-      stage: async (context) =>
+      stage: async (entity, context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            dclArchives!.stageCustomerAttachment(
+            dclArchives!.stageArchiveAttachment(
+              entity,
               context.req.valid('json'),
               actor,
             ),
           )) as never,
           200,
         ),
-      cleanup: async (context) =>
+      cleanup: async (entity, context) =>
         context.json(
           (await executeArchive(context, currentRequestId(context), (actor) =>
-            dclArchives!.cleanupCustomerAttachments(actor),
+            dclArchives!.cleanupArchiveAttachments(entity, actor),
           )) as never,
           200,
         ),
@@ -742,6 +746,17 @@ export function registerAppRoutes(
         )
         return context.json(response as never, 200)
       }
+      if (action === 'prior-sale-continuation')
+        return context.json(
+          await executeVou(context, (actor) =>
+            vou!.queryPriorSaleContinuation(
+              context.req.valid('param').entity,
+              context.req.valid('query'),
+              actor,
+            ),
+          ),
+          200,
+        )
       if (action === 'source-lines') {
         const body = context.req.valid('query')
         const response = await executeVou<unknown>(context, (actor) =>

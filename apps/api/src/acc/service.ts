@@ -38,6 +38,7 @@ import type {
   PlanExecutor,
 } from '../platform/transaction-coordinator.ts'
 import { readVouPersistence } from '../vou/service.ts'
+import { auxCurrentDataSchemas } from '../app/aux-contract.ts'
 import { internalBookId, internalBookSubjects } from './internal-book-seed.ts'
 import { lockAccountingPeriod } from './period-lock.ts'
 import { settleInventoryCost, removeInventoryCost } from './month-end.ts'
@@ -1955,7 +1956,10 @@ export class AccService
   /** Formal database seed; all book facts commit together and are never reset on restart. */
   async initializeInternalBook(
     administratorUsernames: readonly string[],
+    startMonth = '2026-01',
   ): Promise<'created' | 'unchanged'> {
+    if (!/^\d{4}-(?:0[1-9]|1[0-2])$/.test(startMonth))
+      throw new Error('internal book seed start month invalid')
     return this.db.transaction().execute(async (tx) => {
       await sql`SELECT pg_advisory_xact_lock(hashtextextended('acc:book-code', 0))`.execute(
         tx,
@@ -1964,8 +1968,15 @@ export class AccService
         .selectFrom('acc_books')
         .select('id')
         .where('id', '=', internalBookId)
+        .select('start_month')
         .executeTakeFirst()
-      if (existing) return 'unchanged'
+      if (existing) {
+        if (existing.start_month !== startMonth)
+          throw new Error(
+            'internal book seed start month differs from retained book',
+          )
+        return 'unchanged'
+      }
       if (await tx.selectFrom('acc_books').select('id').executeTakeFirst())
         throw new Error('internal book seed requires an empty book baseline')
       const usernames = administratorUsernames.map((value) =>
@@ -2002,7 +2013,7 @@ export class AccService
           id: internalBookId,
           name: '内账',
           description: '参考财务资料导入模板初始化的内部会计账簿',
-          startMonth: '2026-01',
+          startMonth,
           baseCurrency: 'CNY',
           subjectTemplate: 'EMPTY',
           queryUserIds: ids,
@@ -3307,17 +3318,26 @@ export class AccService
             ] as const) {
               const id = line.dimensions[dimension]
               if (!id) continue
-              const current = await resolveAuxCurrentReference(
-                transaction,
-                entity,
-                id,
-              )
-              if (
-                entity === 'fund-account' &&
-                'currency' in current.data &&
-                current.data.currency !== line.currency
-              )
-                throw new AccApplicationError('acc_opening_dimension_required')
+              // Opening carries the old balance of an existing account, including
+              // a stopped one. This adoption never enables it for new cash business.
+              if (entity === 'fund-account') {
+                const account = await transaction
+                  .selectFrom('aux_objects')
+                  .select('data')
+                  .where('id', '=', id)
+                  .where('entity', '=', 'fund-account')
+                  .forShare()
+                  .executeTakeFirst()
+                const parsed = auxCurrentDataSchemas['fund-account'].safeParse(
+                  account?.data,
+                )
+                if (!parsed.success || parsed.data.currency !== line.currency)
+                  throw new AccApplicationError(
+                    'acc_opening_dimension_required',
+                  )
+                continue
+              }
+              await resolveAuxCurrentReference(transaction, entity, id)
             }
           } catch (error) {
             if (error instanceof AuxApplicationError)

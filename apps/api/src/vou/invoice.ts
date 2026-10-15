@@ -112,6 +112,7 @@ export async function freezeInvoiceTax(
 }
 
 export interface InvoiceSource {
+  sourceEntity: 'sale-signoff' | 'purchase-inbound' | 'service-acceptance'
   sourceDocumentId: string
   sourceApprovalEntryId: string
   sourceLineId: string
@@ -138,7 +139,9 @@ const money = (value: bigint) => {
   return `${sign}${digits.slice(0, -2)}.${digits.slice(-2)}`
 }
 const lineAmount = (quantity: bigint, pricing: OrderAmountBasis) =>
-  orderLineAmountMinor(pricing, intermediaryDecimal(quantity, 6), 'HALF_UP')
+  quantity === 0n
+    ? 0n
+    : orderLineAmountMinor(pricing, intermediaryDecimal(quantity, 6), 'HALF_UP')
 const sourceKey = (documentId: string, lineId: string) =>
   `${documentId}:${lineId}`
 export async function lockInvoiceAmounts(tx: Transaction<DB>) {
@@ -172,7 +175,13 @@ async function readInvoiceAmounts(
     ])
     .where('entry.domain', '=', 'vou')
     .where('entry.status', '=', 'APPROVED')
-    .where('entry.entity', 'in', [sourceEntity, returnEntity])
+    .where(
+      'entry.entity',
+      'in',
+      entity === 'sale-invoice'
+        ? [sourceEntity, returnEntity, 'service-acceptance']
+        : [sourceEntity, returnEntity],
+    )
     .execute()
   const cache = new Map<
     string,
@@ -198,9 +207,50 @@ async function readInvoiceAmounts(
     return doc.payload as VouPayloadFor<'sale-order'>
   }
   const facts: InvoiceSource[] = []
-  for (const meta of approved.filter((item) => item.entity === sourceEntity)) {
+  for (const meta of approved.filter(
+    (item) =>
+      item.entity === sourceEntity ||
+      (entity === 'sale-invoice' && item.entity === 'service-acceptance'),
+  )) {
     const doc = await read(meta.subject_id)
     if (doc.businessDate > asOfDate) continue
+    if (meta.entity === 'service-acceptance') {
+      const payload = doc.payload as VouPayloadFor<'service-acceptance'>
+      if (
+        payload.counterpartyType !== 'customer' ||
+        payload.serviceAcceptance.settlementDirection !== 'RECEIVABLE'
+      )
+        continue
+      if (
+        !payload.counterparty ||
+        !payload.operatingEntity ||
+        !payload.serviceLines?.length
+      )
+        throw new VouApplicationError('vou_invoice_source_unavailable')
+      for (const line of payload.serviceLines) {
+        facts.push({
+          sourceEntity: 'service-acceptance',
+          sourceDocumentId: meta.subject_id,
+          sourceApprovalEntryId: meta.id,
+          sourceLineId: line.lineId,
+          documentNo: meta.document_no,
+          businessDate: doc.businessDate,
+          partyId: payload.counterparty.objectId,
+          operatingEntityId: payload.operatingEntity.objectId,
+          currency: payload.currency,
+          // A missing quote stays absent in the public view. Agreed amount is authoritative.
+          unitPrice: line.unitPrice ?? '',
+          pricing: {
+            baseQuantity: line.baseQuantity,
+            unitPrice: line.unitPrice ?? '',
+            agreedAmount: line.agreedAmount,
+          },
+          amount: line.agreedAmount,
+          availableAmount: line.agreedAmount,
+        })
+      }
+      continue
+    }
     if (entity === 'sale-invoice') {
       const payload = doc.payload as VouPayloadFor<'sale-signoff'>,
         order = await salesOrder(meta.subject_id)
@@ -210,10 +260,21 @@ async function readInvoiceAmounts(
         )
         if (!product)
           throw new VouApplicationError('vou_invoice_source_unavailable')
-        const amount = money(
-          lineAmount(units(line.signedBaseQuantity, 6), product),
-        )
+        // Historical actual amounts are facts, never reconstructed from today's
+        // or the original order quote. Missing old facts are not invoice candidates.
+        if (payload.priorFact && line.priorAmount === undefined) continue
+        const pricing: OrderAmountBasis = payload.priorFact
+          ? {
+              ...product,
+              agreedAmount: line.priorAmount!,
+              baseQuantity: line.signedBaseQuantity,
+            }
+          : product
+        const amount = payload.priorFact
+          ? line.priorAmount!
+          : money(lineAmount(units(line.signedBaseQuantity, 6), product))
         facts.push({
+          sourceEntity: 'sale-signoff',
           sourceDocumentId: meta.subject_id,
           sourceApprovalEntryId: meta.id,
           sourceLineId: line.sourceLineId,
@@ -223,7 +284,7 @@ async function readInvoiceAmounts(
           operatingEntityId: order.operatingEntity.objectId,
           currency: doc.payload.currency,
           unitPrice: product.unitPrice,
-          pricing: product,
+          pricing,
           amount,
           availableAmount: amount,
         })
@@ -236,6 +297,7 @@ async function readInvoiceAmounts(
             lineAmount(units(product.baseQuantity, 6), product),
           )
           facts.push({
+            sourceEntity: 'purchase-inbound',
             sourceDocumentId: meta.subject_id,
             sourceApprovalEntryId: meta.id,
             sourceLineId: product.lineId,
@@ -274,6 +336,7 @@ async function readInvoiceAmounts(
               }
         const amount = money(lineAmount(units(line.baseQuantity, 6), pricing))
         facts.push({
+          sourceEntity: 'purchase-inbound',
           sourceDocumentId: meta.subject_id,
           sourceApprovalEntryId: meta.id,
           sourceLineId: line.sourceLineId,
@@ -448,7 +511,8 @@ export async function validateReturnInvoiceCapacity(
         item.sourceDocumentId === line.sourceDocumentId &&
         item.sourceLineId === line.sourceLineId,
     )
-    if (!fact) throw new VouApplicationError('vou_invoice_source_unavailable')
+    if (!fact || fact.sourceEntity === 'service-acceptance')
+      throw new VouApplicationError('vou_invoice_source_unavailable')
     const key = sourceKey(line.sourceDocumentId, line.sourceLineId)
     const sum = (requested.get(key) ?? 0n) + units(line.baseQuantity, 6)
     requested.set(key, sum)

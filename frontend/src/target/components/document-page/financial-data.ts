@@ -245,9 +245,9 @@ export function financialPayload(
       if (
         draft.prepaymentContract &&
         (draft.entity !== 'other-payment' ||
-          draft.counterpartyType !== 'other-unit')
+          !['supplier', 'other-unit'].includes(draft.counterpartyType))
       )
-        throw new Error('预付服务只允许其他单位付款。')
+        throw new Error('预付服务只允许向供应商或其他单位付款。')
       const parent = draft.prepaymentContract
         ? {
             parentEntity: 'service-contract' as const,

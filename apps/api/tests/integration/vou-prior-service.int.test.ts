@@ -90,7 +90,7 @@ function approval(input: ReturnType<typeof command>, revision: string) {
   }
 }
 
-test('ordinary authenticated HTTP preserves standalone service source identities, exact quotation and zero historical effects', async () => {
+async function verifyPriorParty(partyType: 'supplier' | 'other-unit') {
   await withWflDatabase(async (db) => {
     const bootstrap = new TargetBootstrapService(db),
       password = 'Aa9!' + randomBytes(24).toString('base64url'),
@@ -141,42 +141,54 @@ test('ordinary authenticated HTTP preserves standalone service source identities
     const { post, review } = await clients(db, f)
     const actor = { id: f.submitter.userId, permissions: [], trusted: true },
       reviewer = { ...actor, id: f.reviewer.userId }
-    const bob = new DclArchiveService(db),
-      id = ulid(),
+    const bob = new DclArchiveService(db)
+    let id: string, entry: string
+    if (partyType === 'other-unit') {
+      id = ulid()
       entry = ulid()
-    const party = await bob.submit(
-      'other-unit',
-      'submit-new',
-      {
-        subjectId: id,
-        submissionId: entry,
-        idempotencyKey: entry,
-        expectedLatestApprovedSubmissionId: null,
-        expectedLatestApprovedRevision: null,
-        snapshot: {
-          identityKind: 'ORGANIZATION',
-          legalName: '服务事实来源单位',
-          displayName: '服务事实来源单位',
-          legalIdentifier: '',
-          contactName: '',
-          phone: '',
-          address: '',
-          operatingEntities: [],
-          defaultOperatingEntityId: null,
-          remark: '',
-          settlementMethod: null,
+      const party = await bob.submit(
+        'other-unit',
+        'submit-new',
+        {
+          subjectId: id,
+          submissionId: entry,
+          idempotencyKey: entry,
+          expectedLatestApprovedSubmissionId: null,
+          expectedLatestApprovedRevision: null,
+          snapshot: {
+            identityKind: 'ORGANIZATION',
+            legalName: '服务事实来源单位',
+            displayName: '服务事实来源单位',
+            legalIdentifier: '',
+            contactName: '',
+            phone: '',
+            address: '',
+            operatingEntities: [],
+            defaultOperatingEntityId: null,
+            remark: '',
+            settlementMethod: null,
+          },
         },
-      },
-      actor,
-      'service-fixture',
-    )
-    await bob.review(
-      'other-unit',
-      'approve',
-      { subjectId: id, submissionId: entry, expectedRevision: party.revision },
-      reviewer,
-      'service-fixture',
-    )
+        actor,
+        'service-fixture',
+      )
+      await bob.review(
+        'other-unit',
+        'approve',
+        {
+          subjectId: id,
+          submissionId: entry,
+          expectedRevision: party.revision,
+        },
+        reviewer,
+        'service-fixture',
+      )
+    } else {
+      const supplier = (f.purchase.payload as VouPayloadFor<'purchase-order'>)
+        .supplier
+      id = supplier.objectId
+      entry = supplier.approvalEntryId!
+    }
     const unit = f.references.unitSnapshot
     const serviceLine = {
       lineId: ulid(),
@@ -204,6 +216,7 @@ test('ordinary authenticated HTTP preserves standalone service source identities
       currency: 'CNY',
       attachments: [],
       employee: f.salePayload.salesperson!,
+      counterpartyType: partyType,
       counterparty: {
         objectId: id,
         approvalEntryId: entry,
@@ -212,7 +225,7 @@ test('ordinary authenticated HTTP preserves standalone service source identities
     }
     const contract = command({
       ...base,
-      counterpartyType: 'other-unit',
+      counterpartyType: partyType,
       priorFact: fact,
       serviceLines: [serviceLine],
       serviceContract: { requiresPrepayment: true },
@@ -349,6 +362,15 @@ test('ordinary authenticated HTTP preserves standalone service source identities
       }),
     )
     assert.equal(crossCapture.errorKey, 'vou_prior_fact_invalid')
+    const ordinary = command({
+      ...base,
+      serviceContract: { terms: '普通原身份服务' },
+    })
+    const ordinarySaved = await post(
+      '/vou/service-contract/submit-new',
+      ordinary,
+    )
+    assert.equal(ordinarySaved.code, 0, ordinarySaved.errorKey)
     // Scope changes use the normal management domain command and revoke old sessions.
     const management = new ManagementService(db, { passwordMinLength: 12 }),
       role = await management.getRole(f.submitter.roleId, principal)
@@ -437,15 +459,108 @@ test('ordinary authenticated HTTP preserves standalone service source identities
       ).errorKey,
       'forbidden',
     )
+    const currentRole = await management.getRole(role.id, principal)
+    const ordinaryContexts = { ...currentRole.serviceContexts } as Record<
+      string,
+      readonly ServiceContext[]
+    >
+    for (const permission of currentRole.permissions) {
+      if (permission.path === '/vou/service-contract/query')
+        ordinaryContexts[permission.id] = [
+          partyType === 'supplier' ? 'OTHER_UNIT' : 'SUPPLIER',
+        ]
+      if (permission.path === '/vou/service-contract/get')
+        ordinaryContexts[permission.id] = [
+          partyType === 'supplier' ? 'SUPPLIER' : 'OTHER_UNIT',
+        ]
+      if (permission.path === '/vou/service-contract/approve')
+        ordinaryContexts[permission.id] = [
+          partyType === 'supplier' ? 'OTHER_UNIT' : 'SUPPLIER',
+        ]
+    }
+    await management.saveRole(
+      {
+        id: currentRole.id,
+        name: currentRole.name,
+        customerScope: currentRole.customerScope,
+        permissionIds: currentRole.permissions.map((p) => p.id),
+        purchaseInboundScopes:
+          currentRole.purchaseInboundScopes as PurchaseInboundScopes,
+        serviceContexts: ordinaryContexts,
+        revision: currentRole.revision,
+      },
+      principal,
+      'exact-ordinary-service-scope',
+    )
+    assert.equal(
+      (
+        await scoped.post('/vou/service-contract/get', {
+          documentId: ordinary.documentId,
+        })
+      ).errorKey,
+      'unauthenticated',
+    )
+    const exact = await clients(db, f)
+    const ordinaryQuery = await exact.post('/vou/service-contract/query', {
+      page: 1,
+      pageSize: 20,
+      filters: {},
+    })
+    assert.equal(ordinaryQuery.code, 0, ordinaryQuery.errorKey)
+    assert.ok(
+      ordinaryQuery.data.items.every(
+        (item: { documentId: string }) =>
+          item.documentId !== ordinary.documentId,
+      ),
+    )
+    const ordinaryRead = await exact.post('/vou/service-contract/get', {
+      documentId: ordinary.documentId,
+    })
+    assert.equal(ordinaryRead.code, 0, ordinaryRead.errorKey)
+    assert.equal(ordinaryRead.data.payload.counterpartyType, partyType)
+    assert.equal(
+      (
+        await exact.post(
+          '/vou/service-contract/approve',
+          approval(ordinary, ordinarySaved.data.revision),
+        )
+      ).errorKey,
+      'forbidden',
+    )
+    assert.equal(
+      (
+        await exact.post('/vou/service-contract/get', {
+          documentId: contract.documentId,
+        })
+      ).errorKey,
+      'forbidden',
+    )
   })
-})
+}
 
-test('normal service prepayment requires approved actual cash, limits partial capacity and prevents reversing consumed payment', async () => {
+for (const partyType of ['supplier', 'other-unit'] as const) {
+  test(`ordinary authenticated HTTP preserves standalone ${partyType} service source identities, exact quotation and zero historical effects`, async () => {
+    await verifyPriorParty(partyType)
+  })
+}
+
+async function verifyServicePrepayment(partyType: 'supplier' | 'other-unit') {
   await withWflDatabase(async (db) => {
     const f = await seedVouCatalogFixture(db),
       { post, review } = await clients(db, f)
-    const original = f.documents['service-contract']
+    const current = f.documents['service-contract']
       .payload as VouPayloadFor<'service-contract'>
+    const original = {
+      ...current,
+      counterpartyType: partyType,
+      counterparty:
+        partyType === 'supplier'
+          ? (
+              f.documents['purchase-order']
+                .payload as VouPayloadFor<'purchase-order'>
+            ).supplier
+          : current.counterparty,
+    }
     const unit = f.references.unitSnapshot,
       line = {
         lineId: ulid(),
@@ -481,6 +596,7 @@ test('normal service prepayment requires approved actual cash, limits partial ca
       parentEntity: _entity,
       parentDocumentId: _parent,
       counterparty: _party,
+      counterpartyType: _partyType,
       ...acceptanceBase
     } = acceptancePayload
     const acceptance = command({
@@ -515,7 +631,7 @@ test('normal service prepayment requires approved actual cash, limits partial ca
       .payload as VouPayloadFor<'other-payment'>
     const payment = command({
       ...paymentPayload,
-      counterpartyType: 'other-unit',
+      counterpartyType: partyType,
       counterparty: original.counterparty,
       amount: '50.00',
       parentEntity: 'service-contract',
@@ -599,7 +715,13 @@ test('normal service prepayment requires approved actual cash, limits partial ca
     )
     assert.equal(overflow.errorKey, 'vou_service_contract_capacity_exceeded')
   })
-})
+}
+
+for (const partyType of ['supplier', 'other-unit'] as const) {
+  test(`normal ${partyType} service prepayment requires approved actual cash, limits partial capacity and prevents reversing consumed payment`, async () => {
+    await verifyServicePrepayment(partyType)
+  })
+}
 
 test('concurrent authenticated service approvals cannot consume the same contract capacity twice', async () => {
   await withCommittedPurchaseDatabase(async (db) => {
@@ -686,5 +808,131 @@ test('concurrent authenticated service approvals cannot consume the same contrac
       db,
     )
     assert.deepEqual(quantity.rows, [{ quantity: '7000000', amount: '7000' }])
+  })
+})
+
+test('SalesPartner standalone AB/AE/AH HTTP facts preserve exact identity without a cooperation contract or accounting replay', async () => {
+  await withWflDatabase(async (db) => {
+    const f = await seedOrderListFixture(db, 0, [
+      'service-contract',
+      'service-acceptance',
+    ])
+    const { post, review } = await clients(db, f)
+    const bob = new DclArchiveService(db)
+    const actor = { id: f.submitter.userId, permissions: [], trusted: true }
+    const peer = { ...actor, id: f.reviewer.userId }
+    const id = ulid(),
+      entry = ulid()
+    const partner = await bob.submit(
+      'sales-partner',
+      'submit-new',
+      {
+        subjectId: id,
+        submissionId: entry,
+        idempotencyKey: entry,
+        expectedLatestApprovedSubmissionId: null,
+        expectedLatestApprovedRevision: null,
+        snapshot: {
+          identityKind: 'ORGANIZATION',
+          legalName: '历史服务合作方',
+          displayName: '历史服务合作方',
+          legalIdentifier: ulid(),
+          contactName: '',
+          phone: '',
+          address: '',
+          operatingEntities: [],
+          defaultOperatingEntityId: null,
+          remark: '',
+          capabilities: ['CHANNEL_PARTNER'],
+        },
+      },
+      actor,
+      'prior-sales-partner-fixture',
+    )
+    await bob.review(
+      'sales-partner',
+      'approve',
+      {
+        subjectId: id,
+        submissionId: entry,
+        expectedRevision: partner.revision,
+      },
+      peer,
+      'prior-sales-partner-fixture',
+    )
+    const base = {
+      businessDate: '2026-09-20',
+      currency: 'CNY',
+      attachments: [],
+      employee: f.salePayload.salesperson!,
+    }
+    for (const sourceDocumentType of ['AB', 'AE', 'AH'] as const) {
+      const input = command({
+        ...base,
+        counterpartyType: 'sales-partner',
+        counterparty: {
+          objectId: id,
+          approvalEntryId: entry,
+          selectionOrigin: 'CURRENT',
+        },
+        priorFact: {
+          sourceClosed: false,
+          sourceInstanceId: 'fixture',
+          sourceSchema: 'fixture',
+          sourceDocumentType,
+          sourceDocumentKey: 'partner-' + sourceDocumentType,
+          sourceDocumentNo: sourceDocumentType + '-partner',
+          capturedAt: '2026-09-30T23:59:59.123456Z',
+          snapshotDigest: 'a'.repeat(64),
+        },
+        amount: '12.30',
+        serviceLines: [
+          {
+            lineId: ulid(),
+            serviceName: '历史运输',
+            sourceLineKey: '1',
+            enteredQuantity: '1',
+            baseQuantity: '1',
+            enteredUnit: f.references.unitSnapshot,
+            baseUnit: f.references.unitSnapshot,
+            agreedAmount: '12.30',
+          },
+        ],
+        serviceAcceptance: {
+          serviceDate: base.businessDate,
+          acceptanceDate: base.businessDate,
+          settlementDirection: 'PAYABLE',
+        },
+      })
+      const saved = await post('/vou/service-acceptance/submit-new', input)
+      assert.equal(saved.code, 0, saved.errorKey)
+      const approved = await review(
+        '/vou/service-acceptance/approve',
+        approval(input, saved.data.revision),
+      )
+      assert.equal(approved.code, 0, approved.errorKey)
+      const read = await post('/vou/service-acceptance/get', {
+        documentId: input.documentId,
+      })
+      assert.equal(read.code, 0, read.errorKey)
+      assert.equal(read.data.payload.counterpartyType, 'sales-partner')
+      assert.equal(read.data.payload.counterparty.approvalEntryId, entry)
+      assert.equal(read.data.payload.parentDocumentId, undefined)
+      assert.equal(
+        read.data.payload.serviceAcceptance.contractDocumentId,
+        undefined,
+      )
+      const effect = await db
+        .selectFrom('acc_journal_entries')
+        .select('id')
+        .where('vou_approval_entry_id', '=', input.submissionId)
+        .execute()
+      assert.equal(effect.length, 0)
+      const invalid = await post(
+        '/vou/service-acceptance/submit-new',
+        command({ ...input.payload, priorFact: undefined }),
+      )
+      assert.notEqual(invalid.code, 0)
+    }
   })
 })

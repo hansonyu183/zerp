@@ -14,27 +14,42 @@ const added = ['vou_prior_facts', 'vou_return_allocation_counters']
 const oldLayout =
   '5c9ff5ebb314cdcd166e7a251aba9e6cb19fec57ec42fd7996c55370cf57829f'
 const newLayout =
-  '4e542c422b1acb5cb783021c08b46b4af143945100ff220e3986ea97f25388df'
+  'fbb0d546558d244fb2caf1d5fc08568623f7e1cb851d834b75e1fbd58d67e610'
+const standalonePurchaseLayout =
+  '045edc0054445d74206c6741718ec0126345538b588a95ccd13078f2ed9ea0b5'
+const standaloneWithoutClosureLayout =
+  '8660c161c6d19ec565c067b6759f89b8822808a8ce5b0e47409f970935ff62eb'
+const standaloneCompleteLayout =
+  'b606520f9939c63b588c2aca06ffe16a79f702f780307204843774bbb6379699'
+const servicePurchaseLayout =
+  'e3665744586e585e5d15e4b817d39d5a6f81c7758e33c2679d6bc33534ed5113'
+const serviceBeforeClosureLayout =
+  'ab9d11a29139717d677df485a2e7e2caeef06be4627532f2123616eeb28e5039'
+const serviceLegacyReceiptLayout =
+  '461c239b9340cfa78fcb5760b097efb9f840ef0c64091903d55d6f38fb224438'
+const serviceReceiptLayout =
+  '03b42963580d1d0805fc642fefc4c08d768a241d04809addb9316228b1c048ec'
+const originTable = 'vou_prior_receipt_line_origins'
 const digest = (value: unknown) =>
   createHash('sha256').update(JSON.stringify(value)).digest('hex')
 
-async function layout(db: Executor) {
+async function layout(db: Executor, tables = changed) {
   const columns =
     await sql`SELECT cls.relname AS table_name,a.attname AS column_name,format_type(a.atttypid,a.atttypmod) AS data_type,
     CASE WHEN a.attnotnull THEN 'NO' ELSE 'YES' END AS is_nullable,pg_get_expr(d.adbin,d.adrelid) AS column_default,
     a.attidentity::text AS identity_generation,a.attgenerated::text AS generated
     FROM pg_attribute a JOIN pg_class cls ON cls.oid=a.attrelid JOIN pg_namespace ns ON ns.oid=cls.relnamespace
     LEFT JOIN pg_attrdef d ON d.adrelid=a.attrelid AND d.adnum=a.attnum
-    WHERE ns.nspname='public' AND cls.relname IN (${sql.join(changed)}) AND a.attnum>0 AND NOT a.attisdropped
+    WHERE ns.nspname='public' AND cls.relname IN (${sql.join(tables)}) AND a.attnum>0 AND NOT a.attisdropped
     ORDER BY table_name,column_name`.execute(db)
   const constraints =
     await sql`SELECT cls.relname AS table_name,c.conname,c.contype,c.convalidated,pg_get_constraintdef(c.oid) AS definition
     FROM pg_constraint c JOIN pg_class cls ON cls.oid=c.conrelid JOIN pg_namespace ns ON ns.oid=cls.relnamespace
-    WHERE ns.nspname='public' AND cls.relname IN (${sql.join(changed)}) ORDER BY cls.relname,c.conname`.execute(
+    WHERE ns.nspname='public' AND cls.relname IN (${sql.join(tables)}) ORDER BY cls.relname,c.conname`.execute(
       db,
     )
   const indexes =
-    await sql`SELECT tablename,indexname,indexdef FROM pg_indexes WHERE schemaname='public' AND tablename IN (${sql.join(changed)}) ORDER BY tablename,indexname`.execute(
+    await sql`SELECT tablename,indexname,indexdef FROM pg_indexes WHERE schemaname='public' AND tablename IN (${sql.join(tables)}) ORDER BY tablename,indexname`.execute(
       db,
     )
   const value = {
@@ -47,7 +62,9 @@ async function layout(db: Executor) {
     layout:
       hash === oldLayout
         ? ('LEGACY' as const)
-        : hash === newLayout
+        : hash === newLayout ||
+            hash === standalonePurchaseLayout ||
+            hash === servicePurchaseLayout
           ? ('CURRENT' as const)
           : ('UNSUPPORTED' as const),
     value,
@@ -122,14 +139,7 @@ export async function upgradePurchaseCarryover(
   return db.transaction().execute(async (tx) => {
     if ((await layout(tx)).layout !== 'LEGACY')
       throw new Error('purchase_carryover_upgrade_legacy_layout_required')
-    const tables = await sql<{
-      tablename: string
-    }>`SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename`.execute(
-      tx,
-    )
-    await sql`LOCK TABLE ${sql.join(tables.rows.map((row) => sql.table(row.tablename)))} IN ACCESS EXCLUSIVE MODE`.execute(
-      tx,
-    )
+    await lockPublicTables(tx)
     const before = await snapshot(tx)
     if (before.layout !== 'LEGACY' || digest(before) !== input.baseline)
       throw new Error('purchase_carryover_upgrade_baseline_changed')
@@ -139,12 +149,7 @@ export async function upgradePurchaseCarryover(
       throw new Error(
         'purchase_carryover_upgrade_existing_refunds_require_review',
       )
-    const operator =
-      await sql`SELECT 1 FROM app_users u JOIN app_user_roles membership ON membership.user_id=u.id JOIN app_roles r ON r.id=membership.role_id WHERE u.id=${input.actorId} AND u.status='ENABLED' AND r.code='superadmin' AND r.status='ENABLED' FOR SHARE OF u,membership,r`.execute(
-        tx,
-      )
-    if (!operator.rows.length)
-      throw new Error('purchase_carryover_upgrade_operator_required')
+    await requireUpgradeOperator(tx, input.actorId)
     const schema = await readFile(
       new URL('../../db/target-schema.sql', import.meta.url),
       'utf8',
@@ -185,6 +190,171 @@ export async function upgradePurchaseCarryover(
       originalPublicTables: Object.keys(projected).length,
       originalFactsDigest: digest(projected),
       newTablesEmpty: true,
+    }
+  })
+}
+
+async function lockPublicTables(tx: Transaction<DB>) {
+  const tables = await sql<{
+    tablename: string
+  }>`SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename`.execute(
+    tx,
+  )
+  await sql`LOCK TABLE ${sql.join(tables.rows.map((row) => sql.table(row.tablename)))} IN ACCESS EXCLUSIVE MODE`.execute(
+    tx,
+  )
+}
+async function requireUpgradeOperator(tx: Transaction<DB>, actorId: string) {
+  const operator =
+    await sql`SELECT 1 FROM app_users u JOIN app_user_roles membership ON membership.user_id=u.id JOIN app_roles r ON r.id=membership.role_id WHERE u.id=${actorId} AND u.status='ENABLED' AND r.code='superadmin' AND r.status='ENABLED' FOR SHARE OF u,membership,r`.execute(
+      tx,
+    )
+  if (!operator.rows.length)
+    throw new Error('purchase_carryover_upgrade_operator_required')
+}
+
+const beforeClosureLayout =
+  '4e542c422b1acb5cb783021c08b46b4af143945100ff220e3986ea97f25388df'
+async function closureSnapshot(db: Executor) {
+  const shape = (await layout(db)).value
+  const hash = digest(shape)
+  const state =
+    hash === beforeClosureLayout ||
+    hash === standaloneWithoutClosureLayout ||
+    hash === serviceBeforeClosureLayout
+      ? 'LEGACY'
+      : hash === newLayout ||
+          hash === standalonePurchaseLayout ||
+          hash === servicePurchaseLayout
+        ? 'CURRENT'
+        : 'UNSUPPORTED'
+  return {
+    layout: state,
+    shape,
+    facts: state === 'UNSUPPORTED' ? null : await allFacts(db),
+  }
+}
+export async function inspectPurchaseSourceClosureUpgrade(db: Executor) {
+  const before = await closureSnapshot(db)
+  return {
+    layout: before.layout,
+    baseline: digest(before),
+    publicTables:
+      before.facts === null ? null : Object.keys(before.facts).length,
+    priorFacts: before.facts?.vou_prior_facts?.length ?? null,
+  }
+}
+export async function upgradePurchaseSourceClosure(
+  db: Kysely<DB>,
+  input: Parameters<typeof upgradePurchaseCarryover>[1],
+) {
+  return db.transaction().execute(async (tx) => {
+    if ((await closureSnapshot(tx)).layout !== 'LEGACY')
+      throw new Error('purchase_carryover_upgrade_legacy_layout_required')
+    await lockPublicTables(tx)
+    const before = await closureSnapshot(tx)
+    if (before.layout !== 'LEGACY' || digest(before) !== input.baseline)
+      throw new Error('purchase_carryover_upgrade_baseline_changed')
+    await requireUpgradeOperator(tx, input.actorId)
+    // Existing historical records need authoritative source states, never false defaults.
+    if (before.facts!.vou_prior_facts!.length !== 0)
+      throw new Error(
+        'purchase_carryover_upgrade_existing_prior_state_requires_review',
+      )
+    await sql`ALTER TABLE vou_prior_facts ADD COLUMN source_closed boolean NOT NULL`.execute(
+      tx,
+    )
+    const after = await closureSnapshot(tx)
+    if (after.layout !== 'CURRENT')
+      throw new Error('purchase_carryover_upgrade_layout_mismatch')
+    if (digest(before.facts) !== digest(after.facts))
+      throw new Error('purchase_carryover_upgrade_fact_mismatch')
+    return {
+      upgraded: true,
+      sourceReleaseSha: input.sourceReleaseSha,
+      targetReleaseSha: input.targetReleaseSha,
+      baseline: input.baseline,
+      afterBaseline: digest(after),
+      originalPublicTables: Object.keys(before.facts!).length,
+      originalFactsDigest: digest(before.facts),
+      priorFactsEmpty: true,
+    }
+  })
+}
+
+async function receiptSnapshot(db: Executor) {
+  const shape = (await layout(db, [...changed, originTable])).value
+  const hash = digest(shape)
+  const state =
+    hash === newLayout || hash === serviceLegacyReceiptLayout
+      ? 'LEGACY'
+      : hash === standaloneCompleteLayout || hash === serviceReceiptLayout
+        ? 'CURRENT'
+        : 'UNSUPPORTED'
+  return {
+    layout: state,
+    shape,
+    facts: state === 'UNSUPPORTED' ? null : await allFacts(db),
+  }
+}
+export async function inspectStandaloneReceiptUpgrade(db: Executor) {
+  const before = await receiptSnapshot(db)
+  return {
+    layout: before.layout,
+    baseline: digest(before),
+    publicTables:
+      before.facts === null ? null : Object.keys(before.facts).length,
+    priorFacts: before.facts?.vou_prior_facts?.length ?? null,
+  }
+}
+export async function upgradeStandaloneReceipts(
+  db: Kysely<DB>,
+  input: Parameters<typeof upgradePurchaseCarryover>[1],
+) {
+  return db.transaction().execute(async (tx) => {
+    if ((await receiptSnapshot(tx)).layout !== 'LEGACY')
+      throw new Error('purchase_carryover_upgrade_legacy_layout_required')
+    await lockPublicTables(tx)
+    const before = await receiptSnapshot(tx)
+    if (before.layout !== 'LEGACY' || digest(before) !== input.baseline)
+      throw new Error('purchase_carryover_upgrade_baseline_changed')
+    await requireUpgradeOperator(tx, input.actorId)
+    const schema = await readFile(
+      new URL('../../db/target-schema.sql', import.meta.url),
+      'utf8',
+    )
+    const definition = schema.match(
+      new RegExp(String.raw`CREATE TABLE ${originTable} \([\s\S]*?\n\);`),
+    )?.[0]
+    if (!definition)
+      throw new Error('purchase_carryover_upgrade_target_schema_missing')
+    const sourceTypes =
+      digest(before.shape) === serviceLegacyReceiptLayout
+        ? ['AA', 'AD', 'AB', 'AE', 'AF', 'AH']
+        : ['AA', 'AD', 'AB', 'AF', 'AH']
+    await sql`ALTER TABLE vou_prior_facts DROP CONSTRAINT vou_prior_facts_source_document_type_check, ADD CONSTRAINT vou_prior_facts_source_document_type_check CHECK (source_document_type IN (${sql.join(sourceTypes.map((value) => sql.lit(value)))}))`.execute(
+      tx,
+    )
+    await sql.raw(definition).execute(tx)
+    const after = await receiptSnapshot(tx)
+    if (after.layout !== 'CURRENT')
+      throw new Error('purchase_carryover_upgrade_layout_mismatch')
+    const originalFacts = { ...after.facts! }
+    if (originalFacts[originTable]?.length !== 0)
+      throw new Error('purchase_carryover_upgrade_new_facts_not_empty')
+    delete originalFacts[originTable]
+    if (digest(before.facts) !== digest(originalFacts))
+      throw new Error('purchase_carryover_upgrade_fact_mismatch')
+    return {
+      upgraded: true,
+      sourceReleaseSha: input.sourceReleaseSha,
+      targetReleaseSha: input.targetReleaseSha,
+      baseline: input.baseline,
+      afterBaseline: digest(after),
+      originalPublicTables: Object.keys(before.facts!).length,
+      originalFactsDigest: digest(before.facts),
+      priorFactsPreserved: before.facts!.vou_prior_facts!.length,
+      newOriginTableEmpty: true,
     }
   })
 }

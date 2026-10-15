@@ -35,3 +35,12 @@ export const priorFactFields = [
     required: true,
   },
 ] as const satisfies FormFields<VouPriorFact>
+
+export type PriorFactDraft = Omit<VouPriorFact, 'sourceClosed'> & {
+  sourceClosed: boolean | null
+}
+export function priorFactPayload(draft: PriorFactDraft): VouPriorFact {
+  if (typeof draft.sourceClosed !== 'boolean')
+    throw new Error('请选择源单关闭状态。')
+  return { ...draft, sourceClosed: draft.sourceClosed }
+}

@@ -41,7 +41,7 @@ BOB 不建立独立服务项目主数据、服务目录或 `/bob/service` 页面
 
 销售合作业务档案的用户名称固定为“销售合作方”，实体与路径使用 `sales-partner`。BOB 页面同时管理外部兼职销售和渠道商能力。
 
-供应商与其他单位不按 ACC 往来科目区分，而按履约流程区分：Supplier 参与采购订单和仓库收货，Other Unit 参与服务合同和履约验收。
+供应商与其他单位不按 ACC 往来科目区分。Supplier 参与采购订单和仓库收货，也可按 VOU 的明确供应商服务类型参与服务合同和履约验收；Other Unit 参与服务合同和履约验收。同一服务流程不构成改换档案类型的依据，单据采用真实相对方类型及精确版本。
 
 外部兼职销售和渠道拓客使用 Sales Partner，不并入 Employee 或 Other Unit。提交和批准必须至少具有 EXTERNAL_PART_TIME 或 CHANNEL_PARTNER 能力；客户选择主要业务归属时验证明确能力与有效性，不检查自归属。
 
@@ -141,7 +141,7 @@ Customer Version 使用 `pricingPolicy` 保存上述完整封闭值对象。Open
 
 应付款日期只按客户结算快照和实际业务日期计算。销售订单的打印数期从同一客户上一张合格订单取得默认值，保存后成为订单事实。
 
-客户附件在同一个 Customer 本地 Draft 中编辑，并随 submit 创建的同一 Submission 冻结和审批。已持久化 Submission 与历史版本只读。附件类别保存 AUX stable ID、编码和名称快照，来源后续变化不改写历史。
+客户、产品、供应商、其他单位与销售合作方附件在各自本地 Draft 中编辑，并随 submit 创建的同一 Submission 冻结和审批。已持久化 Submission 与历史版本只读。附件类别保存 AUX stable ID、编码和名称快照，来源后续变化不改写历史。
 
 服务相关附件分两层保存：Other Unit 的身份、税务及合作资格资料归其 DCL typed Submission snapshot；正式合同、补充协议、履约证据和验收材料归对应 VOU 单据。两层不得复制形成第二份事实。
 
@@ -374,6 +374,6 @@ Customer 通过 submit-new/submit-change 原子提交完整业务内容与关联
 
 主要业务归属为 INTERNAL_EMPLOYEE（内部员工）、EXTERNAL_PART_TIME（外部兼职）与 CHANNEL_PARTNER（渠道商）；前者采用 AUX 员工，后两者采用当前启用且具备对应能力的 Sales Partner 精确版本。不比较客户与合作方的法定身份或关联税号来禁止自归属。
 
-附件随临时表单保留 Blob，提交时通过 DCL 暂存并在同一事务采用；失败及过期暂存清理由既有机制处理。正式附件按 BOB get 权限、历史附件按 BOB versions 权限、提交件附件按 DCL submission-get 权限读取，均校验 subject、Entry 和附件归属。附件内容损坏返回 customer_attachment_invalid_content。
+附件随临时表单保留 Blob，提交时通过 DCL 暂存并在同一事务采用；失败及过期暂存清理由既有机制处理。正式附件按 BOB get 权限、历史附件按 BOB versions 权限、提交件附件按 DCL submission-get 权限读取，均校验 subject、Entry 和附件归属。附件内容损坏返回 archive_attachment_invalid_content。
 
 现有混合分类不能按名称转成特批或物流分组。只允许经审查的一次性转换，保留来源及历史审计；无法证明转换时拒绝升级。无客户/计算稿/脚本的已核验基线可以升级空表，用户与其他业务资料保留；旧普通字典用途一次性补齐 GENERAL，不在运行时回退。

@@ -1065,3 +1065,62 @@ test('other units and personal sales partners can omit identifiers while organiz
     )
   }
 })
+
+for (const entity of ['other-unit', 'sales-partner'] as const) {
+  test(`${entity} adopts exact ordinary attachment metadata and rejects duplicate or invalid originals`, () => {
+    const file = {
+      id: 'original-file',
+      fileName: ' 空文件.et ',
+      contentType: 'application/octet-stream',
+      sizeBytes: 0,
+      sha256:
+        'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+    }
+    const data = {
+      identityKind: 'PERSON' as const,
+      legalName: '签约人',
+      displayName: '合作身份',
+      legalIdentifier: '',
+      contactName: '',
+      phone: '',
+      address: '',
+      remark: '',
+      operatingEntities: [],
+      defaultOperatingEntityId: null,
+      capabilities: ['CHANNEL_PARTNER' as const],
+      settlementMethod: null,
+      attachments: [file],
+    }
+    const submit = (attachments: typeof data.attachments) => {
+      const input = {
+        ...command(),
+        actor: { ...actor, permissions: [`/dcl/${entity}/submit-new`] },
+        data: { ...data, attachments },
+      }
+      return entity === 'other-unit'
+        ? prepareOtherUnitSubmit(input, { ...newFacts, operatingEntities: [] })
+        : prepareSalesPartnerSubmit(input, {
+            ...newFacts,
+            operatingEntities: [],
+          })
+    }
+    const actual = submit([file])
+    assert.equal(actual.ok, true)
+    if (actual.ok) assert.deepEqual(actual.plan.data.attachments, [file])
+    for (const invalid of [
+      [file, file],
+      [{ ...file, sizeBytes: -1 }],
+      [{ ...file, sha256: 'invalid' }],
+    ]) {
+      const result = submit(invalid)
+      assert.equal(result.ok, false)
+      if (!result.ok)
+        assert.equal(
+          result.error.errorKey,
+          entity === 'other-unit'
+            ? 'other_unit_invalid_data'
+            : 'sales_partner_invalid_data',
+        )
+    }
+  })
+}

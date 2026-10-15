@@ -34,6 +34,7 @@ test('无角色管理权限从真实用户表单分页选择第 201 条，正式
           name: `${prefix}${String(index).padStart(3, '0')}`,
           description: '',
           permissionIds: [permissions.data.items[0].id],
+          purchaseInboundScopes: {},
         },
       })
     ).json()

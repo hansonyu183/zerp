@@ -1,4 +1,8 @@
-import { customerScopeValues } from '@zerp/model'
+import {
+  customerScopeValues,
+  purchaseInboundScopeValues,
+  serviceContextValues,
+} from '@zerp/model'
 import {
   auxiliaryRoute,
   optionPage,
@@ -155,7 +159,17 @@ const permissionReference = z.object({
   description: z.string().nullable(),
   status,
 })
+const purchaseInboundScopes = z.record(
+  z.string(),
+  z.enum(purchaseInboundScopeValues),
+)
+const serviceContexts = z.record(
+  z.string(),
+  z.array(z.enum(serviceContextValues)).min(1).max(serviceContextValues.length),
+)
 const roleDetail = roleListItem.extend({
+  purchaseInboundScopes,
+  serviceContexts,
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
   permissions: z.array(permissionReference),
@@ -295,6 +309,8 @@ const roleCreate = postRoute(
       name: z.string().min(1).max(128),
       description: z.string().max(1000).nullable(),
       permissionIds: z.array(z.string()).min(1),
+      purchaseInboundScopes,
+      serviceContexts: serviceContexts.optional(),
       customerScope: z.enum(customerScopeValues).default('NONE'),
     })
     .strict(),
@@ -308,6 +324,8 @@ const roleSave = postRoute(
       name: z.string().min(1).max(128),
       description: z.string().max(1000).nullable(),
       permissionIds: z.array(z.string()).min(1),
+      purchaseInboundScopes,
+      serviceContexts: serviceContexts.optional(),
       customerScope: z.enum(customerScopeValues).default('NONE'),
       revision: userRevisionSchema,
     })

@@ -1,3 +1,5 @@
+import { isIndependentPriorReceipt } from '../vou/prior-fact.ts'
+import { purchaseReturnSettlementAmounts } from '../vou/invoice.ts'
 import {
   intermediaryDecimal,
   orderLineAmountMinor,
@@ -13,6 +15,7 @@ import { AccApplicationError } from './service.ts'
 export const settlementMovementEntities: readonly string[] = [
   'sale-signoff',
   'purchase-inbound',
+  'purchase-return',
 ]
 export const settlementMovementFields = [
   'line.sourceLineId',
@@ -28,6 +31,7 @@ export async function sourceSettlementMovements(
   tx: Transaction<DB>,
   entity: VouEntity,
   payload: VouPayload,
+  documentId: string,
 ) {
   const sale = entity === 'sale-signoff'
   if (!settlementMovementEntities.includes(entity)) return []
@@ -42,15 +46,30 @@ export async function sourceSettlementMovements(
             sourceLineId: line.sourceLineId,
             quantity: line.baseQuantity,
           }))
-        : []
+        : 'returnLines' in payload
+          ? payload.returnLines.map((line) => ({
+              sourceLineId: line.sourceLineId,
+              quantity: line.baseQuantity,
+            }))
+          : []
   let id = payload.parentDocumentId
   const seen = new Set<string>()
   let order:
-    VouPayloadFor<'sale-order'> | VouPayloadFor<'purchase-order'> | undefined
+    | VouPayloadFor<'sale-order'>
+    | VouPayloadFor<'purchase-order'>
+    | Extract<
+        VouPayloadFor<'purchase-inbound'>,
+        { productLines: readonly unknown[] }
+      >
+    | undefined
   while (id && !seen.has(id)) {
     seen.add(id)
     const source = await readVouPersistence(tx, { documentId: id })
-    if (source.entity === (sale ? 'sale-order' : 'purchase-order')) {
+    if (
+      source.entity === (sale ? 'sale-order' : 'purchase-order') ||
+      (entity === 'purchase-return' &&
+        isIndependentPriorReceipt(source.entity, source.payload))
+    ) {
       order = source.payload as typeof order
       break
     }
@@ -59,7 +78,15 @@ export async function sourceSettlementMovements(
   if (!order) throw new AccApplicationError('acc_period_cost_source_missing')
   const counterpartyId =
     'customer' in order ? order.customer.objectId : order.supplier.objectId
-  return lines.map((line) => {
+  const refunds =
+    entity === 'purchase-return' && 'returnLines' in payload
+      ? await purchaseReturnSettlementAmounts(
+          tx,
+          documentId,
+          payload as VouPayloadFor<'purchase-return'>,
+        )
+      : undefined
+  return lines.map((line, index) => {
     const product = order.productLines.find(
       (candidate) => candidate.lineId === line.sourceLineId,
     )
@@ -70,9 +97,11 @@ export async function sourceSettlementMovements(
       productId: product.product.objectId,
       counterpartyId,
       quantity: line.quantity,
-      amount: intermediaryDecimal(
-        orderLineAmountMinor(product, line.quantity, 'HALF_UP'),
-      ),
+      amount: refunds
+        ? refunds[index]!
+        : intermediaryDecimal(
+            orderLineAmountMinor(product, line.quantity, 'HALF_UP'),
+          ),
       currency: payload.currency,
     }
   })

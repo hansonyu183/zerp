@@ -4,7 +4,11 @@ import { randomBytes } from 'node:crypto'
 import test from 'node:test'
 import { ulid } from 'ulid'
 import { sql } from 'kysely'
-import { AuxApplicationError, AuxService } from '../../src/aux/service.ts'
+import {
+  AuxApplicationError,
+  AuxService,
+  resolveAuxCurrentReference,
+} from '../../src/aux/service.ts'
 import {
   AccApplicationError,
   AccService,
@@ -20,6 +24,11 @@ test('ACC opening adopts current warehouse and fund-account dimensions and prote
   assert.ok(databaseUrl, 'TARGET_TEST_DATABASE_URL is required')
   const db = createDatabase(databaseUrl)
   const bootstrap = new TargetBootstrapService(db)
+  await bootstrap.syncPermissionCatalog(
+    await (
+      await import('../../scripts/target-artifacts.ts')
+    ).readTargetPermissionCatalog(),
+  )
   const suffix = randomBytes(6).toString('hex').toUpperCase()
   const principal = {
     userId: ulid(),
@@ -196,6 +205,25 @@ test('ACC opening adopts current warehouse and fund-account dimensions and prote
       error instanceof AccApplicationError &&
       error.errorKey === 'acc_opening_dimension_required',
   )
+  const stopped = await aux.disable(
+    'fund-account',
+    { id: account.id, revision: account.revision },
+    actor,
+    'stop-opening-fixture-fund',
+  )
+  assert.equal(
+    (await aux.get('fund-account', { id: account.id }, actor)).enabled,
+    false,
+  )
+  await assert.rejects(
+    db
+      .transaction()
+      .execute((tx) =>
+        resolveAuxCurrentReference(tx, 'fund-account', account.id),
+      ),
+    (error) =>
+      error instanceof AuxApplicationError && error.errorKey === 'conflict',
+  )
   const pending = await openingService.submitOpening(
     input,
     actor,
@@ -205,7 +233,7 @@ test('ACC opening adopts current warehouse and fund-account dimensions and prote
   assert.equal(pending.payload.lines[1]!.dimensions.FUND_ACCOUNT, account.id)
   for (const [entity, object] of [
     ['warehouse', warehouse],
-    ['fund-account', account],
+    ['fund-account', { ...account, revision: stopped.revision }],
   ] as const)
     await assert.rejects(
       aux.delete(entity, { id: object.id, revision: object.revision }, actor),
@@ -224,7 +252,7 @@ test('ACC opening adopts current warehouse and fund-account dimensions and prote
   )
   await aux.delete(
     'fund-account',
-    { id: account.id, revision: account.revision },
+    { id: account.id, revision: stopped.revision },
     actor,
   )
 })

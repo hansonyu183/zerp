@@ -1,0 +1,1776 @@
+import {
+  purchaseClients,
+  withCommittedPurchaseDatabase,
+} from '../fixtures/vou-purchase-http.ts'
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { ulid } from 'ulid'
+import { sql } from 'kysely'
+import { type VouPayloadFor, type VouPriorFact } from '@zerp/model'
+import { withWflDatabase } from './wfl-fixture.ts'
+import { seedStockFixture } from '../fixtures/vou-stock.ts'
+
+// The stock opening is a synthetic fixture, never a claim about OIT balances.
+test('public purchase carryover preserves 100/60/40, exact return batches and one future stock effect', async () => {
+  await withWflDatabase(async (db) => {
+    const fixture = await seedStockFixture(
+      db,
+      '2026-09',
+      { quantity: '60', amount: '120.00' },
+      false,
+    )
+    await fixture.quantityMapping('purchase-inbound')
+    await fixture.quantityMapping('purchase-return')
+    const { post, review } = await purchaseClients(db, fixture)
+    const capture: VouPriorFact = {
+      sourceClosed: false,
+      sourceInstanceId: 'fixture-oit',
+      sourceSchema: 'fixture',
+      sourceDocumentType: 'AA',
+      sourceDocumentKey: 'order-100',
+      sourceDocumentNo: 'AA-100',
+      capturedAt: '2026-08-31T23:59:59.000Z',
+      snapshotDigest: 'a'.repeat(64),
+    }
+    const original = fixture.purchase.payload as VouPayloadFor<'purchase-order'>
+    const orderId = ulid(),
+      orderEntry = ulid(),
+      lineId = ulid()
+    const orderInput = {
+      documentId: orderId,
+      submissionId: orderEntry,
+      idempotencyKey: orderEntry,
+      expectedRevision: null,
+      payload: {
+        ...original,
+        businessDate: '2026-08-20',
+        priorFact: capture,
+        productLines: [
+          {
+            ...original.productLines[0]!,
+            lineId,
+            enteredQuantity: '100',
+            baseQuantity: '100',
+            unitPrice: '2.00',
+          },
+        ],
+      },
+    }
+    const order = await post('/vou/purchase-order/submit-new', orderInput)
+    assert.equal(order.code, 0, JSON.stringify(order))
+    assert.deepEqual(
+      (await post('/vou/purchase-order/submit-new', orderInput)).data,
+      order.data,
+    )
+    const own = await post('/vou/purchase-order/approve', {
+      documentId: orderId,
+      submissionId: orderEntry,
+      expectedRevision: order.data.revision,
+    })
+    assert.equal(own.errorKey, 'approval_self_review_forbidden')
+    const approvedOrder = await review('/vou/purchase-order/approve', {
+      documentId: orderId,
+      submissionId: orderEntry,
+      expectedRevision: order.data.revision,
+    })
+    assert.equal(approvedOrder.code, 0, JSON.stringify(approvedOrder))
+    const duplicateBeforeEntry = ulid()
+    const duplicateBefore = await post('/vou/purchase-order/submit-new', {
+      ...orderInput,
+      documentId: ulid(),
+      submissionId: duplicateBeforeEntry,
+      idempotencyKey: duplicateBeforeEntry,
+    })
+    assert.equal(duplicateBefore.errorKey, 'vou_prior_fact_source_conflict')
+    const receiptId = ulid(),
+      receiptEntry = ulid()
+    const receiptPayload: VouPayloadFor<'purchase-inbound'> = {
+      businessDate: '2026-08-19',
+      currency: 'CNY',
+      attachments: [],
+      supplier: original.supplier,
+      warehouse: original.warehouse,
+      parentEntity: 'purchase-order',
+      parentDocumentId: orderId,
+      priorFact: {
+        ...capture,
+        sourceDocumentType: 'AB',
+        sourceDocumentKey: 'receipt-60',
+        sourceDocumentNo: 'AB-60',
+      },
+      sourceLines: [
+        { sourceLineId: lineId, baseQuantity: '60', priorAmount: '101.01' },
+      ],
+    }
+    const earlyOrdinaryEntry = ulid()
+    const earlyOrdinary = await post('/vou/purchase-inbound/submit-new', {
+      documentId: ulid(),
+      submissionId: earlyOrdinaryEntry,
+      idempotencyKey: earlyOrdinaryEntry,
+      expectedRevision: null,
+      payload: {
+        ...receiptPayload,
+        priorFact: undefined,
+        sourceLines: [{ sourceLineId: lineId, baseQuantity: '1' }],
+      },
+    })
+    assert.equal(earlyOrdinary.errorKey, 'vou_parent_invalid')
+    const mismatchEntry = ulid()
+    const mismatch = await post('/vou/purchase-inbound/submit-new', {
+      documentId: ulid(),
+      submissionId: mismatchEntry,
+      idempotencyKey: mismatchEntry,
+      expectedRevision: null,
+      payload: {
+        ...receiptPayload,
+        priorFact: {
+          ...receiptPayload.priorFact!,
+          snapshotDigest: 'b'.repeat(64),
+        },
+      },
+    })
+    assert.equal(mismatch.errorKey, 'vou_prior_fact_invalid')
+    const futureDatedEntry = ulid()
+    const futureDated = await post('/vou/purchase-inbound/submit-new', {
+      documentId: ulid(),
+      submissionId: futureDatedEntry,
+      idempotencyKey: futureDatedEntry,
+      expectedRevision: null,
+      payload: { ...receiptPayload, businessDate: '2026-09-01' },
+    })
+    assert.equal(futureDated.errorKey, 'vou_prior_fact_invalid')
+    const receipt = await post('/vou/purchase-inbound/submit-new', {
+      documentId: receiptId,
+      submissionId: receiptEntry,
+      idempotencyKey: receiptEntry,
+      expectedRevision: null,
+      payload: receiptPayload,
+    })
+    assert.equal(receipt.code, 0, JSON.stringify(receipt))
+    assert.equal(
+      (await post('/vou/purchase-inbound/get', { documentId: receiptId })).data
+        .payload.businessDate,
+      '2026-08-19',
+    )
+    const pendingOpening = await fixture.openings
+      .reviewOpening(
+        'approve',
+        {
+          bookId: fixture.book.id,
+          submissionId: fixture.opening.submissionId,
+          expectedRevision: fixture.opening.approval.revision,
+        },
+        fixture.reviewerActor,
+        'prior-pending-opening',
+      )
+      .then(
+        () => null,
+        (e) => e,
+      )
+    assert.equal(pendingOpening.errorKey, 'vou_prior_fact_pending')
+    assert.ok(
+      pendingOpening.data.blockers.some(
+        (row: { id: string }) => row.id === receiptId,
+      ),
+    )
+    const approvedReceipt = await review('/vou/purchase-inbound/approve', {
+      documentId: receiptId,
+      submissionId: receiptEntry,
+      expectedRevision: receipt.data.revision,
+    })
+    assert.equal(approvedReceipt.code, 0, JSON.stringify(approvedReceipt))
+    assert.equal(approvedReceipt.data.payload.businessDate, '2026-08-19')
+    assert.equal(
+      approvedReceipt.data.payload.sourceLines[0].priorAmount,
+      '101.01',
+    )
+    const earlyReturnEntry = ulid()
+    const earlyReturn = await post('/vou/purchase-return/submit-new', {
+      documentId: ulid(),
+      submissionId: earlyReturnEntry,
+      idempotencyKey: earlyReturnEntry,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-08-26',
+        currency: 'CNY',
+        attachments: [],
+        supplier: original.supplier,
+        warehouse: original.warehouse,
+        parentEntity: 'purchase-order',
+        parentDocumentId: orderId,
+        returnReason: '截止前不能重放',
+        returnLines: [
+          {
+            sourceDocumentId: receiptId,
+            sourceLineId: lineId,
+            baseQuantity: '1',
+          },
+        ],
+      },
+    })
+    assert.equal(earlyReturn.errorKey, 'vou_prior_fact_invalid')
+    const dependentEntry = ulid(),
+      dependentId = ulid()
+    const dependent = await post('/vou/purchase-return/submit-new', {
+      documentId: dependentId,
+      submissionId: dependentEntry,
+      idempotencyKey: dependentEntry,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-09-01',
+        currency: 'CNY',
+        attachments: [],
+        supplier: original.supplier,
+        warehouse: original.warehouse,
+        parentEntity: 'purchase-order',
+        parentDocumentId: orderId,
+        returnReason: '精确批次引用',
+        returnLines: [
+          {
+            sourceDocumentId: receiptId,
+            sourceLineId: lineId,
+            baseQuantity: '1',
+          },
+        ],
+      },
+    })
+    assert.equal(dependent.code, 0, JSON.stringify(dependent))
+    const dependencyBlock = await review('/vou/purchase-inbound/unapprove', {
+      documentId: receiptId,
+      submissionId: receiptEntry,
+      expectedRevision: approvedReceipt.data.revision,
+      reason: '不能撤销被采用原批次',
+    })
+    assert.equal(dependencyBlock.errorKey, 'vou_unapprove_blocked')
+    assert.ok(
+      dependencyBlock.data.blockers.some(
+        (row: { id: string }) => row.id === dependentId,
+      ),
+    )
+    await fixture.vou.delete(
+      'purchase-return',
+      {
+        documentId: dependentId,
+        submissionId: dependentEntry,
+        expectedRevision: dependent.data.revision,
+      },
+      { ...fixture.actor, id: fixture.submitter.userId },
+      'prior-dependent-cleanup',
+    )
+    const priorEntries = await db
+      .selectFrom('acc_journal_entries')
+      .select('id')
+      .where('vou_approval_entry_id', 'in', [orderEntry, receiptEntry])
+      .execute()
+    assert.equal(priorEntries.length, 0)
+    const options = await post(
+      `/vou/purchase-inbound/source-lines?sourceDocumentId=${orderId}&page=1&pageSize=20`,
+      {},
+      'GET',
+    )
+    assert.equal(options.code, 0, JSON.stringify(options))
+    assert.equal(options.data.items[0].availableBaseQuantity, '40.000000')
+    const returnOptions = await post(
+      `/vou/purchase-return/source-lines?sourceDocumentId=${receiptId}&page=1&pageSize=20`,
+      {},
+      'GET',
+    )
+    assert.equal(returnOptions.code, 0, JSON.stringify(returnOptions))
+    assert.equal(returnOptions.data.items[0].sourceDocumentId, receiptId)
+    assert.equal(returnOptions.data.items[0].availableBaseQuantity, '60.000000')
+    await fixture.openings.reviewOpening(
+      'approve',
+      {
+        bookId: fixture.book.id,
+        submissionId: fixture.opening.submissionId,
+        expectedRevision: fixture.opening.approval.revision,
+      },
+      fixture.reviewerActor,
+      'prior-opening',
+    )
+    const frozen = await review('/vou/purchase-inbound/unapprove', {
+      documentId: receiptId,
+      submissionId: receiptEntry,
+      expectedRevision: approvedReceipt.data.revision,
+      reason: '历史事实已冻结',
+    })
+    assert.equal(frozen.errorKey, 'vou_prior_fact_frozen')
+    const duplicateEntry = ulid()
+    const duplicate = await post('/vou/purchase-order/submit-new', {
+      ...orderInput,
+      documentId: ulid(),
+      submissionId: duplicateEntry,
+      idempotencyKey: duplicateEntry,
+    })
+    assert.equal(duplicate.errorKey, 'vou_prior_fact_frozen')
+    const { priorFact: _prior, ...futurePayload } = receiptPayload
+    const futureId = ulid(),
+      futureEntry = ulid()
+    const futureInput = {
+      documentId: futureId,
+      submissionId: futureEntry,
+      idempotencyKey: futureEntry,
+      expectedRevision: null,
+      payload: {
+        ...futurePayload,
+        businessDate: '2026-09-01',
+        sourceLines: [{ sourceLineId: lineId, baseQuantity: '40' }],
+      },
+    }
+    const excessEntry = ulid()
+    const excess = await post('/vou/purchase-inbound/submit-new', {
+      ...futureInput,
+      documentId: ulid(),
+      submissionId: excessEntry,
+      idempotencyKey: excessEntry,
+      payload: {
+        ...futureInput.payload,
+        sourceLines: [{ sourceLineId: lineId, baseQuantity: '41' }],
+      },
+    })
+    assert.equal(excess.errorKey, 'vou_source_line_quantity_exceeded')
+    const future = await post('/vou/purchase-inbound/submit-new', futureInput)
+    assert.equal(future.code, 0, JSON.stringify(future))
+    const futureApproved = await review('/vou/purchase-inbound/approve', {
+      documentId: futureId,
+      submissionId: futureEntry,
+      expectedRevision: future.data.revision,
+    })
+    assert.equal(futureApproved.code, 0, JSON.stringify(futureApproved))
+    const stock = await sql<{
+      quantity: string
+    }>`SELECT SUM(quantity)::text AS quantity FROM acc_inventory_entries WHERE book_id=${fixture.book.id} AND product_id=${fixture.rawId}`.execute(
+      db,
+    )
+    assert.equal(stock.rows[0]?.quantity, '100.00000000')
+    const onlyFuture = await db
+      .selectFrom('acc_journal_entries')
+      .select('id')
+      .where('vou_approval_entry_id', '=', futureEntry)
+      .execute()
+    assert.equal(onlyFuture.length, 1)
+    const orderAfter = await post('/vou/purchase-order/get', {
+      documentId: orderId,
+    })
+    assert.deepEqual(orderAfter.data.payload, approvedOrder.data.payload)
+    const returnedId = ulid(),
+      returnedEntry = ulid()
+    const returned = await post('/vou/purchase-return/submit-new', {
+      documentId: returnedId,
+      submissionId: returnedEntry,
+      idempotencyKey: returnedEntry,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-09-02',
+        currency: 'CNY',
+        attachments: [],
+        supplier: original.supplier,
+        warehouse: original.warehouse,
+        parentEntity: 'purchase-order',
+        parentDocumentId: orderId,
+        returnReason: '退回此前实际批次',
+        returnLines: [
+          {
+            sourceDocumentId: receiptId,
+            sourceLineId: lineId,
+            baseQuantity: '10',
+          },
+        ],
+      },
+    })
+    assert.equal(returned.code, 0, JSON.stringify(returned))
+    const returnedApproved = await review('/vou/purchase-return/approve', {
+      documentId: returnedId,
+      submissionId: returnedEntry,
+      expectedRevision: returned.data.revision,
+    })
+    assert.equal(returnedApproved.code, 0, JSON.stringify(returnedApproved))
+    const invoiceOptions = await fixture.vou.invoiceSourceOptions(
+      'purchase-invoice',
+      {
+        objectId: original.supplier.objectId,
+        operatingEntityId: '',
+        businessDate: '2026-09-02',
+        currency: 'CNY',
+      },
+      fixture.actor,
+    )
+    assert.equal(
+      invoiceOptions.items.find((row) => row.sourceDocumentId === receiptId)
+        ?.availableAmount,
+      '84.18',
+    )
+    const restored = await post(
+      `/vou/purchase-inbound/source-lines?sourceDocumentId=${orderId}&page=1&pageSize=20`,
+      {},
+      'GET',
+    )
+    assert.equal(restored.data.items[0].availableBaseQuantity, '10.000000')
+  })
+})
+
+test('prior refund keeps its actual amount and future refunds consume the exact residual batch amount', async () => {
+  await withWflDatabase(async (db) => {
+    const fixture = await seedStockFixture(
+      db,
+      '2026-09',
+      { quantity: '50', amount: '100.00' },
+      false,
+    )
+    const refundMapping = await fixture.quantityMapping('purchase-return')
+    const { post, review } = await purchaseClients(db, fixture)
+    const original = fixture.purchase.payload as VouPayloadFor<'purchase-order'>
+    const lineId = ulid()
+    const capture: VouPriorFact = {
+      sourceClosed: false,
+      sourceInstanceId: 'fixture',
+      sourceSchema: 'fixture',
+      sourceDocumentType: 'AA',
+      sourceDocumentKey: 'original',
+      sourceDocumentNo: 'AA-1',
+      capturedAt: '2026-08-31T23:59:59.000Z',
+      snapshotDigest: 'c'.repeat(64),
+    }
+    async function save(
+      entity: 'purchase-order' | 'purchase-inbound' | 'purchase-return',
+      payload: unknown,
+    ) {
+      const documentId = ulid(),
+        submissionId = ulid()
+      const saved = await post(`/vou/${entity}/submit-new`, {
+        documentId,
+        submissionId,
+        idempotencyKey: submissionId,
+        expectedRevision: null,
+        payload,
+      })
+      assert.equal(saved.code, 0, JSON.stringify(saved))
+      const approved = await review(`/vou/${entity}/approve`, {
+        documentId,
+        submissionId,
+        expectedRevision: saved.data.revision,
+      })
+      assert.equal(approved.code, 0, JSON.stringify(approved))
+      return approved.data
+    }
+    const order = await save('purchase-order', {
+      ...original,
+      businessDate: '2026-08-20',
+      priorFact: capture,
+      productLines: [
+        {
+          ...original.productLines[0]!,
+          lineId,
+          enteredQuantity: '100',
+          baseQuantity: '100',
+          unitPrice: '2.00',
+        },
+      ],
+    })
+    const base = {
+      currency: 'CNY',
+      attachments: [],
+      supplier: original.supplier,
+      warehouse: original.warehouse,
+      parentEntity: 'purchase-order',
+      parentDocumentId: order.documentId,
+    }
+    const receipt = await save('purchase-inbound', {
+      ...base,
+      businessDate: '2026-08-21',
+      priorFact: {
+        ...capture,
+        sourceDocumentType: 'AB',
+        sourceDocumentKey: 'receipt',
+        sourceDocumentNo: 'AB-1',
+      },
+      sourceLines: [
+        { sourceLineId: lineId, baseQuantity: '60', priorAmount: '101.01' },
+      ],
+    })
+    const priorReturn = await save('purchase-return', {
+      ...base,
+      businessDate: '2026-08-22',
+      priorFact: {
+        ...capture,
+        sourceDocumentType: 'AF',
+        sourceDocumentKey: 'return',
+        sourceDocumentNo: 'AF-1',
+      },
+      returnReason: '历史实际退货',
+      returnLines: [
+        {
+          sourceDocumentId: receipt.documentId,
+          sourceLineId: lineId,
+          baseQuantity: '10',
+          priorAmount: '20.00',
+        },
+      ],
+    })
+    assert.equal(priorReturn.payload.returnLines[0].priorAmount, '20.00')
+    const entries = await db
+      .selectFrom('acc_journal_entries')
+      .select('id')
+      .where('vou_approval_entry_id', 'in', [
+        receipt.submissionId,
+        priorReturn.submissionId,
+      ])
+      .execute()
+    assert.equal(entries.length, 0)
+    const before = await fixture.vou.invoiceSourceOptions(
+      'purchase-invoice',
+      {
+        objectId: original.supplier.objectId,
+        operatingEntityId: '',
+        businessDate: '2026-09-30',
+        currency: 'CNY',
+      },
+      fixture.actor,
+    )
+    assert.equal(
+      before.items.find((row) => row.sourceDocumentId === receipt.documentId)
+        ?.availableAmount,
+      '81.01',
+    )
+    const payable = await fixture.acc.createSubject(
+      {
+        id: ulid(),
+        bookId: fixture.book.id,
+        code: '2202',
+        name: '测试供应商应付',
+        parentId: null,
+        balanceDirection: 'CREDIT',
+        enabled: true,
+        requiredDimensions: ['SUPPLIER'],
+        inventoryQuantity: false,
+        settlementPurpose: 'PAYABLE',
+      },
+      fixture.actor,
+    )
+    await fixture.openings.deleteOpening(
+      {
+        bookId: fixture.book.id,
+        submissionId: fixture.opening.submissionId,
+        expectedRevision: fixture.opening.approval.revision,
+      },
+      fixture.actor,
+      'replace-synthetic-opening',
+    )
+    const openingId = ulid()
+    const financialOpening = await fixture.openings.submitOpening(
+      {
+        ...fixture.opening.payload,
+        submissionId: openingId,
+        idempotencyKey: openingId,
+        lines: [
+          ...fixture.opening.payload.lines.map((line) =>
+            line.direction === 'CREDIT' ? { ...line, amount: '18.99' } : line,
+          ),
+          {
+            subjectId: payable.id,
+            currency: 'CNY',
+            direction: 'CREDIT',
+            amount: '81.01',
+            dimensions: { SUPPLIER: original.supplier.objectId },
+          },
+        ],
+      },
+      fixture.actor,
+      'synthetic-payable-opening',
+    )
+    const counterpart = refundMapping.definition.templates[0]!.lines[1]!
+    await fixture.mappings.save(
+      {
+        bookId: fixture.book.id,
+        vouEntity: 'purchase-return',
+        expectedRevision: refundMapping.revision,
+        defaultResult: refundMapping.defaultResult,
+        definition: {
+          ...refundMapping.definition,
+          templates: refundMapping.definition.templates.map((template) => ({
+            ...template,
+            lines: [
+              ...template.lines,
+              {
+                ...counterpart,
+                collection: 'settlementMovements',
+                subjectValue: payable.id,
+                direction: 'DEBIT',
+                dimensions: { SUPPLIER: 'line.counterpartyId' },
+              },
+              { ...counterpart, collection: 'settlementMovements' },
+            ],
+          })),
+        },
+      },
+      fixture.actor,
+    )
+    await fixture.openings.reviewOpening(
+      'approve',
+      {
+        bookId: fixture.book.id,
+        submissionId: financialOpening.submissionId,
+        expectedRevision: financialOpening.approval.revision,
+      },
+      fixture.reviewerActor,
+      'residual-opening',
+    )
+    const firstRefund = await save('purchase-return', {
+      ...base,
+      businessDate: '2026-09-01',
+      returnReason: '截止后部分退货',
+      returnLines: [
+        {
+          sourceDocumentId: receipt.documentId,
+          sourceLineId: lineId,
+          baseQuantity: '25',
+        },
+      ],
+    })
+    const halfway = await fixture.vou.invoiceSourceOptions(
+      'purchase-invoice',
+      {
+        objectId: original.supplier.objectId,
+        operatingEntityId: '',
+        businessDate: '2026-09-30',
+        currency: 'CNY',
+      },
+      fixture.actor,
+    )
+    assert.equal(
+      halfway.items.find((row) => row.sourceDocumentId === receipt.documentId)
+        ?.availableAmount,
+      '40.51',
+    )
+    const lastRefund = await save('purchase-return', {
+      ...base,
+      businessDate: '2026-09-02',
+      returnReason: '退完剩余真实批次',
+      returnLines: [
+        {
+          sourceDocumentId: receipt.documentId,
+          sourceLineId: lineId,
+          baseQuantity: '25',
+        },
+      ],
+    })
+    await db
+      .updateTable('approval_entries')
+      .set({ approved_at: new Date('2026-10-07T00:00:00Z') })
+      .where('id', 'in', [firstRefund.submissionId, lastRefund.submissionId])
+      .execute()
+    const nonTail = await review('/vou/purchase-return/unapprove', {
+      documentId: firstRefund.documentId,
+      submissionId: firstRefund.submissionId,
+      expectedRevision: firstRefund.revision,
+      reason: '不能先撤销前一笔尾差分配',
+    })
+    assert.equal(nonTail.errorKey, 'vou_unapprove_blocked')
+    assert.ok(
+      nonTail.data.blockers.some(
+        (row: { id: string }) => row.id === lastRefund.documentId,
+      ),
+    )
+    const posted = await sql<{ amount: string }>`
+      SELECT line.amount::text FROM acc_journal_lines line JOIN acc_journal_entries entry ON entry.id=line.journal_entry_id
+      WHERE line.subject_id=${payable.id} AND entry.vou_approval_entry_id IN (${firstRefund.submissionId},${lastRefund.submissionId}) ORDER BY line.amount
+    `.execute(db)
+    assert.deepEqual(
+      posted.rows.map((row) => row.amount),
+      ['40.50000000', '40.51000000'],
+    )
+    const balance = await fixture.acc.partyBalance(
+      db as unknown as import('kysely').Transaction<
+        import('../../src/db/generated.ts').DB
+      >,
+      {
+        counterpartyDimension: 'SUPPLIER',
+        counterpartyObjectId: original.supplier.objectId,
+        currency: 'CNY',
+        settlementPurpose: 'PAYABLE',
+        asOfDate: '2026-09-30',
+      },
+    )
+    assert.equal(balance, 0n)
+    const final = await fixture.vou.invoiceSourceOptions(
+      'purchase-invoice',
+      {
+        objectId: original.supplier.objectId,
+        operatingEntityId: '',
+        businessDate: '2026-09-30',
+        currency: 'CNY',
+      },
+      fixture.actor,
+    )
+    assert.equal(
+      final.items.find((row) => row.sourceDocumentId === receipt.documentId),
+      undefined,
+    )
+    const tailReversed = await review('/vou/purchase-return/unapprove', {
+      documentId: lastRefund.documentId,
+      submissionId: lastRefund.submissionId,
+      expectedRevision: lastRefund.revision,
+      reason: '按顺序撤销最后分配',
+    })
+    assert.equal(tailReversed.code, 0, JSON.stringify(tailReversed))
+    const tailCapacity = await fixture.vou.invoiceSourceOptions(
+      'purchase-invoice',
+      {
+        objectId: original.supplier.objectId,
+        operatingEntityId: '',
+        businessDate: '2026-09-30',
+        currency: 'CNY',
+      },
+      fixture.actor,
+    )
+    assert.equal(
+      tailCapacity.items.find(
+        (row) => row.sourceDocumentId === receipt.documentId,
+      )?.availableAmount,
+      '40.51',
+    )
+    const restoredTail = await review('/vou/purchase-return/approve', {
+      documentId: lastRefund.documentId,
+      submissionId: lastRefund.submissionId,
+      expectedRevision: tailReversed.data.revision,
+    })
+    assert.equal(restoredTail.code, 0, JSON.stringify(restoredTail))
+    assert.equal(
+      await fixture.acc.partyBalance(
+        db as unknown as import('kysely').Transaction<
+          import('../../src/db/generated.ts').DB
+        >,
+        {
+          counterpartyDimension: 'SUPPLIER',
+          counterpartyObjectId: original.supplier.objectId,
+          currency: 'CNY',
+          settlementPurpose: 'PAYABLE',
+          asOfDate: '2026-09-30',
+        },
+      ),
+      0n,
+    )
+  })
+})
+
+test('closed prior purchase keeps original and historical quantities without reopening inbound capacity', async () => {
+  await withWflDatabase(async (db) => {
+    const fixture = await seedStockFixture(
+      db,
+      '2026-09',
+      { quantity: '120', amount: '240.00' },
+      false,
+    )
+    await fixture.quantityMapping('purchase-return')
+    const { post, review } = await purchaseClients(db, fixture)
+    const original = fixture.purchase.payload as VouPayloadFor<'purchase-order'>
+    const lineId = ulid()
+    const capture: VouPriorFact = {
+      sourceClosed: true,
+      sourceInstanceId: 'fixture-closed',
+      sourceSchema: 'fixture',
+      sourceDocumentType: 'AD',
+      sourceDocumentKey: 'closed-order',
+      sourceDocumentNo: 'AD-CLOSED',
+      capturedAt: '2026-08-31T23:59:59.000Z',
+      snapshotDigest: 'd'.repeat(64),
+    }
+    async function save(
+      entity: 'purchase-order' | 'purchase-inbound' | 'purchase-return',
+      payload: unknown,
+    ) {
+      const documentId = ulid(),
+        submissionId = ulid()
+      const input = {
+        documentId,
+        submissionId,
+        idempotencyKey: submissionId,
+        expectedRevision: null,
+        payload,
+      }
+      const saved = await post(`/vou/${entity}/submit-new`, input)
+      assert.equal(saved.code, 0, JSON.stringify(saved))
+      assert.deepEqual(
+        (await post(`/vou/${entity}/submit-new`, input)).data,
+        saved.data,
+      )
+      const approved = await review(`/vou/${entity}/approve`, {
+        documentId,
+        submissionId,
+        expectedRevision: saved.data.revision,
+      })
+      assert.equal(approved.code, 0, JSON.stringify(approved))
+      assert.equal(approved.data.payload.priorFact.sourceClosed, true)
+      return approved.data
+    }
+    const payload = {
+      ...original,
+      businessDate: '2026-08-20',
+      priorFact: capture,
+      productLines: [
+        {
+          ...original.productLines[0]!,
+          lineId,
+          enteredQuantity: '100',
+          baseQuantity: '100',
+          unitPrice: '2.00',
+        },
+      ],
+    }
+    const { sourceClosed: _missing, ...unknownCapture } = capture
+    const unknownId = ulid(),
+      unknownSubmission = ulid()
+    const unknown = await post('/vou/purchase-order/submit-new', {
+      documentId: unknownId,
+      submissionId: unknownSubmission,
+      idempotencyKey: unknownSubmission,
+      expectedRevision: null,
+      payload: { ...payload, priorFact: unknownCapture },
+    })
+    assert.notEqual(unknown.code, 0)
+    const order = await save('purchase-order', payload)
+    assert.equal(order.payload.productLines[0].baseQuantity, '100.000000')
+    const base = {
+      currency: 'CNY',
+      attachments: [],
+      supplier: original.supplier,
+      warehouse: original.warehouse,
+      parentEntity: 'purchase-order',
+      parentDocumentId: order.documentId,
+    }
+    const receipt = await save('purchase-inbound', {
+      ...base,
+      businessDate: '2026-08-25',
+      priorFact: {
+        ...capture,
+        sourceDocumentType: 'AB',
+        sourceDocumentKey: 'receipt-60',
+        sourceDocumentNo: 'AB-60',
+      },
+      sourceLines: [
+        { sourceLineId: lineId, baseQuantity: '60', priorAmount: '120.00' },
+      ],
+    })
+    const candidates = () =>
+      post(
+        `/vou/purchase-inbound/source-lines?sourceDocumentId=${order.documentId}&page=1&pageSize=20`,
+        {},
+        'GET',
+      )
+    assert.equal((await candidates()).data.total, 0)
+    const historyCandidates = await post(
+      `/vou/purchase-inbound/source-lines?sourceDocumentId=${order.documentId}&page=1&pageSize=20&historical=true`,
+      {},
+      'GET',
+    )
+    assert.equal(historyCandidates.code, 0, JSON.stringify(historyCandidates))
+    assert.equal(
+      historyCandidates.data.items[0].sourceDocumentId,
+      order.documentId,
+    )
+    assert.equal(
+      historyCandidates.data.items[0].availableBaseQuantity,
+      '100.000000',
+    )
+    const documentsBefore = await db
+      .selectFrom('vou_documents')
+      .select('id')
+      .execute()
+    const ordinaryId = ulid(),
+      ordinarySubmission = ulid()
+    const ordinary = await post('/vou/purchase-inbound/submit-new', {
+      documentId: ordinaryId,
+      submissionId: ordinarySubmission,
+      idempotencyKey: ordinarySubmission,
+      expectedRevision: null,
+      payload: {
+        ...base,
+        businessDate: '2026-09-01',
+        sourceLines: [{ sourceLineId: lineId, baseQuantity: '40' }],
+      },
+    })
+    assert.equal(ordinary.errorKey, 'vou_prior_order_closed')
+    assert.equal(ordinary.data.blockers[0].objectId, order.documentId)
+    assert.equal(ordinary.data.blockers[0].entity, 'purchase-order')
+    assert.deepEqual(
+      await db.selectFrom('vou_documents').select('id').execute(),
+      documentsBefore,
+    )
+    // A closed order still adopts real over-receipt history instead of clipping it.
+    const excess = await save('purchase-inbound', {
+      ...base,
+      businessDate: '2026-08-26',
+      priorFact: {
+        ...capture,
+        sourceDocumentType: 'AB',
+        sourceDocumentKey: 'receipt-70',
+        sourceDocumentNo: 'AB-70',
+      },
+      sourceLines: [
+        { sourceLineId: lineId, baseQuantity: '70', priorAmount: '140.00' },
+      ],
+    })
+    const returned = await save('purchase-return', {
+      ...base,
+      businessDate: '2026-08-27',
+      returnReason: '真实此前退货',
+      priorFact: {
+        ...capture,
+        sourceDocumentType: 'AF',
+        sourceDocumentKey: 'return-10',
+        sourceDocumentNo: 'AF-10',
+      },
+      returnLines: [
+        {
+          sourceDocumentId: receipt.documentId,
+          sourceLineId: lineId,
+          baseQuantity: '10',
+          priorAmount: '20.00',
+        },
+      ],
+    })
+    assert.equal((await candidates()).data.total, 0)
+    const entries = await db
+      .selectFrom('acc_journal_entries')
+      .select('id')
+      .where('vou_approval_entry_id', 'in', [
+        order.submissionId,
+        receipt.submissionId,
+        excess.submissionId,
+        returned.submissionId,
+      ])
+      .execute()
+    assert.equal(entries.length, 0)
+    await fixture.openings.reviewOpening(
+      'approve',
+      {
+        bookId: fixture.book.id,
+        submissionId: fixture.opening.submissionId,
+        expectedRevision: fixture.opening.approval.revision,
+      },
+      fixture.reviewerActor,
+      'closed-prior-opening',
+    )
+    const refundId = ulid(),
+      refundSubmission = ulid()
+    const refund = await post('/vou/purchase-return/submit-new', {
+      documentId: refundId,
+      submissionId: refundSubmission,
+      idempotencyKey: refundSubmission,
+      expectedRevision: null,
+      payload: {
+        ...base,
+        businessDate: '2026-09-01',
+        returnReason: '截止后退回真实批次',
+        returnLines: [
+          {
+            sourceDocumentId: receipt.documentId,
+            sourceLineId: lineId,
+            baseQuantity: '50',
+          },
+        ],
+      },
+    })
+    assert.equal(refund.code, 0, JSON.stringify(refund))
+    const refundApproved = await review('/vou/purchase-return/approve', {
+      documentId: refundId,
+      submissionId: refundSubmission,
+      expectedRevision: refund.data.revision,
+    })
+    assert.equal(refundApproved.code, 0, JSON.stringify(refundApproved))
+    // Net receipts are now 70 against the original 100, but closure is unchanged.
+    assert.equal((await candidates()).data.total, 0)
+    const afterReturnId = ulid()
+    const afterReturn = await post('/vou/purchase-inbound/submit-new', {
+      documentId: ulid(),
+      submissionId: afterReturnId,
+      idempotencyKey: afterReturnId,
+      expectedRevision: null,
+      payload: {
+        ...base,
+        businessDate: '2026-09-02',
+        sourceLines: [{ sourceLineId: lineId, baseQuantity: '30' }],
+      },
+    })
+    assert.equal(afterReturn.errorKey, 'vou_prior_order_closed')
+    const read = await post('/vou/purchase-order/get', {
+      documentId: order.documentId,
+    })
+    assert.equal(read.data.payload.priorFact.sourceClosed, true)
+    assert.equal(read.data.payload.productLines[0].baseQuantity, '100.000000')
+  })
+})
+
+test('public prior submission and readback preserve the real six-place cutoff and reject another microsecond', async () => {
+  await withWflDatabase(async (db) => {
+    const fixture = await seedStockFixture(
+      db,
+      '2026-11',
+      { quantity: '60', amount: '120.00' },
+      false,
+    )
+    const { post, review } = await purchaseClients(db, fixture)
+    const original = fixture.purchase.payload as VouPayloadFor<'purchase-order'>
+    const capture: VouPriorFact = {
+      sourceClosed: false,
+      sourceInstanceId: 'precision-fixture',
+      sourceSchema: 'fixture',
+      sourceDocumentType: 'AA',
+      sourceDocumentKey: 'original',
+      sourceDocumentNo: 'AA-MICRO',
+      capturedAt: '2026-10-07T05:26:54.644297Z',
+      snapshotDigest: 'e'.repeat(64),
+    }
+    const orderId = ulid(),
+      entry = ulid(),
+      lineId = ulid()
+    const input = {
+      documentId: orderId,
+      submissionId: entry,
+      idempotencyKey: entry,
+      expectedRevision: null,
+      payload: {
+        ...original,
+        businessDate: '2026-10-05',
+        priorFact: capture,
+        productLines: [
+          {
+            ...original.productLines[0]!,
+            lineId,
+            enteredQuantity: '100',
+            baseQuantity: '100',
+            unitPrice: '2.00',
+          },
+        ],
+      },
+    }
+    const saved = await post('/vou/purchase-order/submit-new', input)
+    assert.equal(saved.code, 0, JSON.stringify(saved))
+    assert.equal(saved.data.payload.priorFact.capturedAt, capture.capturedAt)
+    assert.deepEqual(
+      (await post('/vou/purchase-order/submit-new', input)).data,
+      saved.data,
+    )
+    const approved = await review('/vou/purchase-order/approve', {
+      documentId: orderId,
+      submissionId: entry,
+      expectedRevision: saved.data.revision,
+    })
+    assert.equal(approved.code, 0, JSON.stringify(approved))
+    const read = await post('/vou/purchase-order/get', { documentId: orderId })
+    assert.equal(read.data.payload.priorFact.capturedAt, capture.capturedAt)
+    const receiptId = ulid(),
+      receiptEntry = ulid()
+    const receipt = {
+      documentId: receiptId,
+      submissionId: receiptEntry,
+      idempotencyKey: receiptEntry,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-10-06',
+        currency: 'CNY',
+        attachments: [],
+        supplier: original.supplier,
+        warehouse: original.warehouse,
+        parentEntity: 'purchase-order',
+        parentDocumentId: orderId,
+        priorFact: {
+          ...capture,
+          sourceDocumentType: 'AB',
+          sourceDocumentKey: 'receipt',
+          sourceDocumentNo: 'AB-MICRO',
+        },
+        sourceLines: [
+          { sourceLineId: lineId, baseQuantity: '60', priorAmount: '120.00' },
+        ],
+      },
+    }
+    for (const cutoff of [
+      '2026-10-07T05:26:54.644298Z',
+      '2026-10-07T05:26:54.644Z',
+    ]) {
+      const rejected = await post('/vou/purchase-inbound/submit-new', {
+        ...receipt,
+        payload: {
+          ...receipt.payload,
+          priorFact: { ...receipt.payload.priorFact, capturedAt: cutoff },
+        },
+      })
+      assert.equal(rejected.errorKey, 'vou_prior_fact_invalid')
+      assert.equal(
+        (
+          await db
+            .selectFrom('vou_documents')
+            .select('id')
+            .where('id', '=', receiptId)
+            .execute()
+        ).length,
+        0,
+      )
+    }
+    const extraPrecision = await post('/vou/purchase-inbound/submit-new', {
+      ...receipt,
+      payload: {
+        ...receipt.payload,
+        priorFact: {
+          ...receipt.payload.priorFact,
+          capturedAt: '2026-10-07T05:26:54.6442977Z',
+        },
+      },
+    })
+    assert.notEqual(extraPrecision.code, 0)
+    const accepted = await post('/vou/purchase-inbound/submit-new', receipt)
+    assert.equal(accepted.code, 0, JSON.stringify(accepted))
+    assert.equal(accepted.data.payload.priorFact.capturedAt, capture.capturedAt)
+    const receiptApproved = await review('/vou/purchase-inbound/approve', {
+      documentId: receiptId,
+      submissionId: receiptEntry,
+      expectedRevision: accepted.data.revision,
+    })
+    assert.equal(receiptApproved.code, 0, JSON.stringify(receiptApproved))
+    assert.equal(
+      receiptApproved.data.payload.priorFact.capturedAt,
+      capture.capturedAt,
+    )
+  })
+})
+
+test('public standalone prior receipt retains its sales origin and supports exact prior return capacity', async (context) => {
+  await withCommittedPurchaseDatabase(async (db) => {
+    const fixture = await seedStockFixture(
+      db,
+      '2026-09',
+      { quantity: '60', amount: '120.00' },
+      false,
+    )
+    const { post, review } = await purchaseClients(db, fixture, context)
+    const original = fixture.purchase.payload as VouPayloadFor<'purchase-order'>
+    const documentId = ulid(),
+      submissionId = ulid(),
+      lineId = original.productLines[0]!.lineId
+    const originalApproved = await review('/vou/purchase-order/approve', {
+      documentId: fixture.purchase.documentId,
+      submissionId: fixture.purchase.submissionId,
+      expectedRevision: fixture.purchase.revision,
+    })
+    assert.equal(originalApproved.code, 0, JSON.stringify(originalApproved))
+    const originalCandidates = await post(
+      `/vou/purchase-inbound/source-lines?page=1&pageSize=20&sourceDocumentId=${fixture.purchase.documentId}`,
+      null,
+      'GET',
+    )
+    assert.equal(originalCandidates.code, 0, JSON.stringify(originalCandidates))
+    assert.ok(originalCandidates.data.items.length > 0)
+    const priorFact: VouPriorFact = {
+      sourceClosed: false,
+      sourceInstanceId: 'fixture-oit',
+      sourceSchema: 'fixture',
+      sourceDocumentType: 'AH',
+      sourceDocumentKey: '548914',
+      sourceDocumentNo: 'AH-20260911-008',
+      capturedAt: '2026-09-20T23:59:59.123456Z',
+      snapshotDigest: 'a'.repeat(64),
+    }
+    const input = {
+      documentId,
+      submissionId,
+      idempotencyKey: submissionId,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-09-11',
+        currency: 'CNY',
+        attachments: [],
+        supplier: original.supplier,
+        warehouse: original.warehouse,
+        priorFact,
+        productLines: [
+          {
+            ...original.productLines[0]!,
+            lineId,
+            enteredQuantity: '1100',
+            baseQuantity: '1100',
+            unitPrice: '7.500000',
+            agreedAmount: '8250.00',
+          },
+        ],
+        priorLineOrigins: [
+          {
+            lineId,
+            sourceDocumentType: 'BB',
+            sourceDocumentKey: '548909',
+            sourceLineKey: '5',
+          },
+        ],
+      },
+    }
+    for (const patch of [
+      { priorFact: undefined },
+      {
+        productLines: [
+          { ...input.payload.productLines[0]!, product: { objectId: ulid() } },
+        ],
+      },
+      {
+        productLines: [
+          {
+            ...input.payload.productLines[0]!,
+            enteredUnit: {
+              ...input.payload.productLines[0]!.enteredUnit,
+              objectId: ulid(),
+            },
+          },
+        ],
+      },
+      { supplier: { ...original.supplier, approvalEntryId: ulid() } },
+      {
+        sourceLines: [
+          {
+            sourceLineId: lineId,
+            baseQuantity: '1100',
+            priorAmount: '8250.00',
+          },
+        ],
+      },
+      { priorLineOrigins: [] },
+      {
+        priorLineOrigins: [
+          { ...input.payload.priorLineOrigins[0]!, lineId: ulid() },
+        ],
+      },
+      {
+        parentEntity: 'purchase-order',
+        parentDocumentId: fixture.purchase.documentId,
+      },
+      {
+        productLines: [
+          { ...input.payload.productLines[0]!, baseQuantity: '-1100' },
+        ],
+      },
+    ]) {
+      const badEntry = ulid()
+      const rejected = await post('/vou/purchase-inbound/submit-new', {
+        ...input,
+        documentId: ulid(),
+        submissionId: badEntry,
+        idempotencyKey: badEntry,
+        payload: { ...input.payload, ...patch },
+      })
+      assert.notEqual(rejected.code, 0, JSON.stringify(rejected))
+    }
+    const before = (
+      await sql<{
+        count: string
+      }>`SELECT COUNT(*)::text AS count FROM acc_inventory_entries`.execute(db)
+    ).rows[0]!.count
+    const freshInputs = [0, 1].map(() => {
+      const entry = ulid()
+      return {
+        ...input,
+        documentId: ulid(),
+        submissionId: entry,
+        idempotencyKey: entry,
+        payload: {
+          ...input.payload,
+          priorFact: { ...priorFact, sourceDocumentKey: 'fresh-race-receipt' },
+        },
+      }
+    })
+    const freshRace = await Promise.all(
+      freshInputs.map((candidate) =>
+        post('/vou/purchase-inbound/submit-new', candidate),
+      ),
+    )
+    assert.equal(freshRace.filter((result) => result.code === 0).length, 1)
+    assert.equal(
+      freshRace.find((result) => result.code !== 0)?.errorKey,
+      'vou_prior_fact_source_conflict',
+    )
+    const winner = freshRace.find((result) => result.code === 0)!.data
+    const rejectedWinner = await review('/vou/purchase-inbound/reject', {
+      documentId: winner.documentId,
+      submissionId: winner.submissionId,
+      expectedRevision: winner.revision,
+      reason: '并发来源唯一测试夹具，结束候选',
+    })
+    assert.equal(rejectedWinner.code, 0, JSON.stringify(rejectedWinner))
+    await assert.rejects(
+      post('/vou/purchase-inbound/submit-new', input, 'POST', true),
+      /fetch failed/,
+    )
+    const recovered = await post('/vou/purchase-inbound/get', { documentId })
+    assert.equal(recovered.code, 0, JSON.stringify(recovered))
+    assert.equal(recovered.data.submissionId, submissionId)
+    assert.equal(recovered.data.status, 'PENDING')
+    const concurrent = await Promise.all([
+      post('/vou/purchase-inbound/submit-new', input),
+      post('/vou/purchase-inbound/submit-new', input),
+    ])
+    const submitted = concurrent[0]
+    assert.equal(concurrent[1].code, 0, JSON.stringify(concurrent[1]))
+    assert.deepEqual(concurrent[1].data, submitted.data)
+    assert.equal(submitted.code, 0, JSON.stringify(submitted))
+    assert.deepEqual(
+      (await post('/vou/purchase-inbound/submit-new', input)).data,
+      submitted.data,
+    )
+    const duplicateEntry = ulid()
+    const duplicateSource = await post('/vou/purchase-inbound/submit-new', {
+      ...input,
+      documentId: ulid(),
+      submissionId: duplicateEntry,
+      idempotencyKey: duplicateEntry,
+    })
+    assert.equal(duplicateSource.errorKey, 'vou_prior_fact_source_conflict')
+    const approved = await review('/vou/purchase-inbound/approve', {
+      documentId,
+      submissionId,
+      expectedRevision: submitted.data.revision,
+    })
+    assert.equal(approved.code, 0, JSON.stringify(approved))
+    const detail = await post('/vou/purchase-inbound/get', { documentId })
+    assert.equal(detail.code, 0, JSON.stringify(detail))
+    assert.deepEqual(
+      detail.data.payload.priorLineOrigins,
+      input.payload.priorLineOrigins,
+    )
+    assert.equal(detail.data.payload.productLines[0].agreedAmount, '8250.00')
+    assert.equal(detail.data.payload.parentDocumentId, undefined)
+    async function savePrior(
+      entity: 'purchase-order' | 'purchase-inbound',
+      payload: unknown,
+    ) {
+      const id = ulid(),
+        entry = ulid()
+      const submitted = await post(`/vou/${entity}/submit-new`, {
+        documentId: id,
+        submissionId: entry,
+        idempotencyKey: entry,
+        expectedRevision: null,
+        payload,
+      })
+      assert.equal(submitted.code, 0, JSON.stringify(submitted))
+      const approved = await review(`/vou/${entity}/approve`, {
+        documentId: id,
+        submissionId: entry,
+        expectedRevision: submitted.data.revision,
+      })
+      assert.equal(approved.code, 0, JSON.stringify(approved))
+      return approved.data
+    }
+    const otherOrder = await savePrior('purchase-order', {
+      ...original,
+      priorFact: {
+        ...priorFact,
+        sourceDocumentType: 'AA',
+        sourceDocumentKey: 'mixed-order',
+        sourceDocumentNo: 'AA-MIXED',
+      },
+    })
+    const otherReceipt = await savePrior('purchase-inbound', {
+      businessDate: '2026-09-11',
+      currency: 'CNY',
+      attachments: [],
+      supplier: original.supplier,
+      warehouse: original.warehouse,
+      parentEntity: 'purchase-order',
+      parentDocumentId: otherOrder.documentId,
+      priorFact: {
+        ...priorFact,
+        sourceDocumentType: 'AB',
+        sourceDocumentKey: 'mixed-receipt',
+        sourceDocumentNo: 'AB-MIXED',
+      },
+      sourceLines: [
+        { sourceLineId: lineId, baseQuantity: '1', priorAmount: '2.00' },
+      ],
+    })
+    const retId = ulid(),
+      retEntry = ulid()
+    const priorReturnInput = {
+      documentId: retId,
+      submissionId: retEntry,
+      idempotencyKey: retEntry,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-09-12',
+        currency: 'CNY',
+        attachments: [],
+        parentEntity: 'purchase-inbound',
+        parentDocumentId: documentId,
+        supplier: original.supplier,
+        warehouse: original.warehouse,
+        priorFact: {
+          ...priorFact,
+          sourceDocumentType: 'AF',
+          sourceDocumentKey: '553802',
+          sourceDocumentNo: 'AF-553802',
+        },
+        returnReason: '原退货，来源未提供独立原因',
+        returnLines: [
+          {
+            sourceDocumentId: documentId,
+            sourceLineId: lineId,
+            baseQuantity: '220',
+            priorAmount: '1650.00',
+          },
+        ],
+      },
+    }
+    for (const patch of [
+      {
+        returnLines: [
+          {
+            sourceDocumentId: documentId,
+            sourceLineId: lineId,
+            baseQuantity: '1',
+            priorAmount: '7.50',
+          },
+          {
+            sourceDocumentId: otherReceipt.documentId,
+            sourceLineId: lineId,
+            baseQuantity: '1',
+            priorAmount: '2.00',
+          },
+        ],
+      },
+      {
+        priorFact: {
+          ...priorReturnInput.payload.priorFact,
+          capturedAt: '2026-09-20T23:59:59.123457Z',
+        },
+      },
+      {
+        priorFact: {
+          ...priorReturnInput.payload.priorFact,
+          sourceInstanceId: 'other-source',
+        },
+      },
+      {
+        priorFact: {
+          ...priorReturnInput.payload.priorFact,
+          snapshotDigest: 'b'.repeat(64),
+        },
+      },
+      {
+        returnLines: [
+          { ...priorReturnInput.payload.returnLines[0]!, baseQuantity: '1101' },
+        ],
+      },
+      {
+        returnLines: [
+          {
+            ...priorReturnInput.payload.returnLines[0]!,
+            sourceDocumentId: fixture.purchase.documentId,
+          },
+        ],
+      },
+      { supplier: { ...original.supplier, objectId: ulid() } },
+    ]) {
+      const entry = ulid()
+      const rejected = await post('/vou/purchase-return/submit-new', {
+        ...priorReturnInput,
+        documentId: ulid(),
+        submissionId: entry,
+        idempotencyKey: entry,
+        payload: { ...priorReturnInput.payload, ...patch },
+      })
+      assert.notEqual(rejected.code, 0, JSON.stringify(rejected))
+    }
+    const returned = await post(
+      '/vou/purchase-return/submit-new',
+      priorReturnInput,
+    )
+    assert.equal(returned.code, 0, JSON.stringify(returned))
+    const returnedApproved = await review('/vou/purchase-return/approve', {
+      documentId: retId,
+      submissionId: retEntry,
+      expectedRevision: returned.data.revision,
+    })
+    assert.equal(returnedApproved.code, 0, JSON.stringify(returnedApproved))
+    const unchangedCandidates = await post(
+      `/vou/purchase-inbound/source-lines?page=1&pageSize=20&sourceDocumentId=${fixture.purchase.documentId}`,
+      null,
+      'GET',
+    )
+    assert.equal(
+      unchangedCandidates.code,
+      0,
+      JSON.stringify(unchangedCandidates),
+    )
+    assert.deepEqual(unchangedCandidates.data, originalCandidates.data)
+    const optionResponse = await post(
+      `/vou/purchase-invoice/invoice-sources?objectId=${original.supplier.objectId}&operatingEntityId=${fixture.salePayload.operatingEntity.objectId}&businessDate=2026-09-30&currency=CNY`,
+      null,
+      'GET',
+    )
+    assert.equal(optionResponse.code, 0, JSON.stringify(optionResponse))
+    const options = optionResponse.data
+    assert.equal(
+      options.items.find(
+        (row: { sourceDocumentId: string; availableAmount: string }) =>
+          row.sourceDocumentId === documentId,
+      )?.availableAmount,
+      '6600.00',
+    )
+    const candidateResponse = await post(
+      `/vou/purchase-return/source-lines?page=1&pageSize=20&sourceDocumentId=${documentId}`,
+      null,
+      'GET',
+    )
+    assert.equal(candidateResponse.code, 0, JSON.stringify(candidateResponse))
+    const candidates = candidateResponse.data
+    assert.equal(candidates.items[0]?.availableBaseQuantity, '880.000000')
+    assert.equal(candidates.items[0]?.rootEntity, 'purchase-inbound')
+    const secondWarehouse = await fixture.aux.create(
+      'warehouse',
+      {
+        name: '退货实际仓库',
+        address: '',
+        contactName: '',
+        contactPhone: '',
+        remark: '',
+        managerEmployeeId: null,
+      },
+      {
+        ...fixture.actor,
+        permissions: [...fixture.actor.permissions, '/aux/warehouse/create'],
+      },
+    )
+    const futureEntry = ulid()
+    const future = await post('/vou/purchase-return/submit-new', {
+      documentId: ulid(),
+      submissionId: futureEntry,
+      idempotencyKey: futureEntry,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-09-21',
+        currency: 'CNY',
+        attachments: [],
+        parentEntity: 'purchase-inbound',
+        parentDocumentId: documentId,
+        supplier: original.supplier,
+        warehouse: { objectId: secondWarehouse.id },
+        returnReason: '从实际仓库退回',
+        returnLines: [
+          {
+            sourceDocumentId: documentId,
+            sourceLineId: lineId,
+            baseQuantity: '1',
+          },
+        ],
+      },
+    })
+    assert.equal(future.code, 0, JSON.stringify(future))
+    assert.equal(future.data.payload.warehouse.objectId, secondWarehouse.id)
+    assert.equal(
+      (
+        await sql<{
+          count: string
+        }>`SELECT COUNT(*)::text AS count FROM acc_inventory_entries`.execute(
+          db,
+        )
+      ).rows[0]!.count,
+      before,
+    )
+    assert.equal(
+      (
+        await sql<{
+          count: string
+        }>`SELECT COUNT(*)::text AS count FROM acc_journal_entries WHERE vou_approval_entry_id IN (${submissionId},${retEntry})`.execute(
+          db,
+        )
+      ).rows[0]!.count,
+      '0',
+    )
+    const mapping = await fixture.quantityMapping('purchase-return')
+    const payable = await fixture.acc.createSubject(
+      {
+        id: ulid(),
+        bookId: fixture.book.id,
+        code: '2202',
+        name: '独立批次应付测试',
+        parentId: null,
+        balanceDirection: 'CREDIT',
+        enabled: true,
+        requiredDimensions: ['SUPPLIER'],
+        inventoryQuantity: false,
+        settlementPurpose: 'PAYABLE',
+      },
+      fixture.actor,
+    )
+    await fixture.openings.deleteOpening(
+      {
+        bookId: fixture.book.id,
+        submissionId: fixture.opening.submissionId,
+        expectedRevision: fixture.opening.approval.revision,
+      },
+      fixture.actor,
+      'replace-synthetic-opening',
+    )
+    const openingEntry = ulid()
+    const opening = await fixture.openings.submitOpening(
+      {
+        ...fixture.opening.payload,
+        submissionId: openingEntry,
+        idempotencyKey: openingEntry,
+        lines: [
+          ...fixture.opening.payload.lines.filter(
+            (line) => line.direction === 'DEBIT',
+          ),
+          {
+            subjectId: fixture.equity.id,
+            currency: 'CNY',
+            direction: 'DEBIT',
+            amount: '6480.00',
+            dimensions: {},
+          },
+          {
+            subjectId: payable.id,
+            currency: 'CNY',
+            direction: 'CREDIT',
+            amount: '6600.00',
+            dimensions: { SUPPLIER: original.supplier.objectId },
+          },
+        ],
+      },
+      fixture.actor,
+      'synthetic-independent-opening',
+    )
+    const counterpart = mapping.definition.templates[0]!.lines[1]!
+    await fixture.mappings.save(
+      {
+        bookId: fixture.book.id,
+        vouEntity: 'purchase-return',
+        expectedRevision: mapping.revision,
+        defaultResult: mapping.defaultResult,
+        definition: {
+          ...mapping.definition,
+          templates: mapping.definition.templates.map((template) => ({
+            ...template,
+            lines: [
+              ...template.lines,
+              {
+                ...counterpart,
+                collection: 'settlementMovements',
+                subjectValue: payable.id,
+                direction: 'DEBIT',
+                dimensions: { SUPPLIER: 'line.counterpartyId' },
+              },
+              { ...counterpart, collection: 'settlementMovements' },
+            ],
+          })),
+        },
+      },
+      fixture.actor,
+    )
+    await fixture.openings.reviewOpening(
+      'approve',
+      {
+        bookId: fixture.book.id,
+        submissionId: opening.submissionId,
+        expectedRevision: opening.approval.revision,
+      },
+      fixture.reviewerActor,
+      'synthetic-independent-opening',
+    )
+    const frozenEntry = ulid()
+    const frozenCreate = await post('/vou/purchase-inbound/submit-new', {
+      ...input,
+      documentId: ulid(),
+      submissionId: frozenEntry,
+      idempotencyKey: frozenEntry,
+      payload: {
+        ...input.payload,
+        priorFact: { ...priorFact, sourceDocumentKey: 'after-opening' },
+      },
+    })
+    assert.equal(frozenCreate.errorKey, 'vou_prior_fact_frozen')
+    for (const [entity, record] of [
+      ['purchase-inbound', approved.data],
+      ['purchase-return', returnedApproved.data],
+    ] as const) {
+      const frozen = await review(`/vou/${entity}/unapprove`, {
+        documentId: record.documentId,
+        submissionId: record.submissionId,
+        expectedRevision: record.revision,
+        reason: '独立此前冻结回归',
+      })
+      assert.equal(frozen.errorKey, 'vou_prior_fact_frozen')
+    }
+    const noStock = await review('/vou/purchase-return/approve', {
+      documentId: future.data.documentId,
+      submissionId: futureEntry,
+      expectedRevision: future.data.revision,
+    })
+    assert.notEqual(noStock.code, 0, JSON.stringify(noStock))
+    assert.equal(
+      (
+        await post('/vou/purchase-return/get', {
+          documentId: future.data.documentId,
+        })
+      ).data.status,
+      'PENDING',
+    )
+    const actualEntry = ulid(),
+      actualId = ulid()
+    const actual = await post('/vou/purchase-return/submit-new', {
+      documentId: actualId,
+      submissionId: actualEntry,
+      idempotencyKey: actualEntry,
+      expectedRevision: null,
+      payload: {
+        businessDate: '2026-09-21',
+        currency: 'CNY',
+        attachments: [],
+        parentEntity: 'purchase-inbound',
+        parentDocumentId: documentId,
+        supplier: original.supplier,
+        warehouse: original.warehouse,
+        returnReason: '从有期初库存的实际仓库退回',
+        returnLines: [
+          {
+            sourceDocumentId: documentId,
+            sourceLineId: lineId,
+            baseQuantity: '1',
+          },
+        ],
+      },
+    })
+    assert.equal(actual.code, 0, JSON.stringify(actual))
+    const posted = await review('/vou/purchase-return/approve', {
+      documentId: actualId,
+      submissionId: actualEntry,
+      expectedRevision: actual.data.revision,
+    })
+    assert.equal(posted.code, 0, JSON.stringify(posted))
+    const inventory = await db
+      .selectFrom('acc_inventory_entries')
+      .selectAll()
+      .where('vou_approval_entry_id', '=', actualEntry)
+      .execute()
+    assert.equal(inventory.length, 1)
+    assert.equal(inventory[0]!.warehouse_id, original.warehouse.objectId)
+    assert.equal(inventory[0]!.quantity, '-1.00000000')
+    const settlement = await sql<{
+      amount: string
+    }>`SELECT line.amount::text FROM acc_journal_lines line JOIN acc_journal_entries entry ON entry.id=line.journal_entry_id WHERE line.subject_id=${payable.id} AND entry.vou_approval_entry_id=${actualEntry}`.execute(
+      db,
+    )
+    assert.deepEqual(
+      settlement.rows.map((row) => row.amount),
+      ['7.50000000'],
+    )
+    const remaining = await post(
+      `/vou/purchase-invoice/invoice-sources?objectId=${original.supplier.objectId}&operatingEntityId=${fixture.salePayload.operatingEntity.objectId}&businessDate=2026-09-30&currency=CNY`,
+      null,
+      'GET',
+    )
+    assert.equal(
+      remaining.data.items.find(
+        (row: { sourceDocumentId: string }) =>
+          row.sourceDocumentId === documentId,
+      )?.availableAmount,
+      '6592.50',
+    )
+  })
+})

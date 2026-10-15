@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import {
+  canonicalVouPriorCutoff,
   prepareVouApproval,
   prepareVouSubmission,
   createVouDraftPayload,
@@ -781,6 +782,89 @@ test('sale signoff owns an exact customer container fact', () => {
   )
 })
 
+test('prior signoff requires an exact actual amount and ordinary signoff cannot supply it', () => {
+  const payload = {
+    businessDate: '2026-09-04',
+    currency: 'CNY',
+    attachments: [],
+    customer: reference,
+    expectedSolventContainers: 0,
+    expectedResinContainers: 0,
+    returnedSolventContainers: 0,
+    returnedResinContainers: 0,
+    priorFact: {
+      sourceClosed: false,
+      sourceInstanceId: 'synthetic-instance',
+      sourceSchema: 'synthetic',
+      sourceDocumentType: 'BA',
+      sourceDocumentKey: '1',
+      sourceDocumentNo: 'BA-1',
+      capturedAt: '2026-09-05T00:00:00Z',
+      snapshotDigest: 'a'.repeat(64),
+    },
+    signoffLines: [
+      {
+        sourceLineId: 'line-1',
+        signedBaseQuantity: '1',
+        rejectedBaseQuantity: '0',
+        priorAmount: '0.00',
+      },
+    ],
+  }
+  const parse = (value: unknown) => {
+    const parsed = vouPayloadSchemaByEntity['sale-signoff'].safeParse(value)
+    if (!parsed.success) return false
+    return prepareVouSubmission(
+      {
+        ...base,
+        entity: 'sale-signoff',
+        action: 'submit-new',
+        payload: parsed.data,
+      },
+      {
+        actor: { ...submitter, trusted: true },
+        documentExists: false,
+        currentRevision: null,
+        currentSubmissionId: null,
+        referencesValid: true,
+        periodOpen: true,
+        trustedSystemActor: true,
+      },
+    ).ok
+  }
+  assert.equal(parse(payload), true)
+  assert.equal(
+    parse({
+      ...payload,
+      signoffLines: [{ ...payload.signoffLines[0], priorAmount: '-12.34' }],
+    }),
+    true,
+  )
+  assert.equal(
+    parse({
+      ...payload,
+      signoffLines: [{ ...payload.signoffLines[0], priorAmount: undefined }],
+    }),
+    false,
+  )
+  assert.equal(
+    parse({
+      ...payload,
+      signoffLines: [{ ...payload.signoffLines[0], priorAmount: '0.001' }],
+    }),
+    false,
+  )
+  const { priorFact: _prior, ...ordinary } = payload
+  assert.equal(parse(ordinary), false)
+  assert.equal(
+    parse({
+      ...ordinary,
+      signoffLines: [{ ...ordinary.signoffLines[0], priorAmount: undefined }],
+    }),
+    true,
+  )
+})
+
 test('the target contract rejects over-precision amount and base-quantity facts', () => {
   const invalidAmount = vouSubmitRequestSchema.safeParse({
     ...base,
@@ -880,5 +964,40 @@ test('sales refunds resolve the exact customer while receipts resolve the custom
   assert.equal(
     vouPayloadReferences('sales-receipt', payload)[0]?.candidateEntity,
     'customer',
+  )
+})
+
+test('prior cutoff keeps microseconds, normalizes equivalent UTC representations and rejects unsupported precision', () => {
+  assert.equal(
+    canonicalVouPriorCutoff({ toString: 'invalid' } as unknown as string),
+    undefined,
+  )
+  const real = '2026-10-07T05:26:54.644297Z'
+  assert.equal(canonicalVouPriorCutoff(real), real)
+  assert.notEqual(
+    canonicalVouPriorCutoff(real),
+    canonicalVouPriorCutoff('2026-10-07T05:26:54.644298Z'),
+  )
+  assert.notEqual(
+    canonicalVouPriorCutoff(real),
+    canonicalVouPriorCutoff('2026-10-07T05:26:54.644Z'),
+  )
+  for (const value of [
+    '2026-10-07T05:26:54Z',
+    '2026-10-07T05:26:54.0Z',
+    '2026-10-07T05:26:54.000000Z',
+  ])
+    assert.equal(canonicalVouPriorCutoff(value), '2026-10-07T05:26:54.000000Z')
+  assert.equal(
+    canonicalVouPriorCutoff('2026-10-07T05:26:54.6442977Z'),
+    undefined,
+  )
+  assert.equal(
+    canonicalVouPriorCutoff('2026-02-30T05:26:54.644297Z'),
+    undefined,
+  )
+  assert.equal(
+    canonicalVouPriorCutoff('2026-10-07T13:26:54.644297+08:00'),
+    undefined,
   )
 })

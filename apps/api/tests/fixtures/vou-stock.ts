@@ -11,10 +11,13 @@ export async function seedStockFixture(
   db: Kysely<DB>,
   startMonth = '2026-09',
   initialStock = { quantity: '10', amount: '10.00' },
+  approveOpening = true,
 ) {
   const fixture = await seedProductionFixture(db, 0, [
     'sale-order',
     'purchase-order',
+    'purchase-inbound',
+    'purchase-return',
     'self-production',
     'order-production',
     'inventory-count',
@@ -103,16 +106,17 @@ export async function seedStockFixture(
     actor,
     'stock-opening',
   )
-  await openings.reviewOpening(
-    'approve',
-    {
-      bookId: book.id,
-      submissionId: openingId,
-      expectedRevision: opening.approval.revision,
-    },
-    fixture.reviewerActor,
-    'stock-opening',
-  )
+  if (approveOpening)
+    await openings.reviewOpening(
+      'approve',
+      {
+        bookId: book.id,
+        submissionId: openingId,
+        expectedRevision: opening.approval.revision,
+      },
+      fixture.reviewerActor,
+      'stock-opening',
+    )
   const catalog = await mappings.catalog(actor)
   const quantityMapping = async (
     entity: string,
@@ -168,6 +172,8 @@ export async function seedStockFixture(
   const vou = new VouService(db, { acc, wfl: { async apply() {} } })
   return {
     ...fixture,
+    openings,
+    opening,
     actor,
     acc,
     mappings,

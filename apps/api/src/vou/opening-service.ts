@@ -115,6 +115,9 @@ export class VouOpeningService {
   ) {
     requirePermission(actor, `/vou/opening/${action}`)
     return this.db.transaction().execute(async (tx) => {
+      await sql`SELECT id FROM acc_books WHERE control_book FOR UPDATE`.execute(
+        tx,
+      )
       const entry = await this.approval.load(
         tx,
         {
@@ -137,6 +140,22 @@ export class VouOpeningService {
         ...(input.reason === undefined ? {} : { reason: input.reason }),
       })
       if (action === 'approve') {
+        const pending = await sql<{ document_id: string; entity: string }>`
+          SELECT entry.subject_id AS document_id, entry.entity FROM vou_prior_facts prior
+          JOIN approval_entries entry ON entry.id = prior.approval_entry_id
+          WHERE entry.status = 'PENDING' AND EXISTS (
+            SELECT 1 FROM acc_books WHERE id = ${input.bookId} AND control_book
+          ) ORDER BY entry.subject_id
+        `.execute(tx)
+        if (pending.rows.length)
+          throw new AccApplicationError(
+            'vou_prior_fact_pending',
+            pending.rows.map((row) => ({
+              kind: 'DOWNSTREAM_DOCUMENT',
+              id: row.document_id,
+              entity: row.entity,
+            })),
+          )
         const snapshot = await tx
           .selectFrom('acc_opening_snapshots')
           .select('payload')
@@ -340,6 +359,9 @@ export class VouOpeningService {
   ) {
     requirePermission(actor, '/vou/opening/delete')
     return this.db.transaction().execute(async (tx) => {
+      await sql`SELECT id FROM acc_books WHERE control_book FOR UPDATE`.execute(
+        tx,
+      )
       const entry = await this.approval.load(
         tx,
         {

@@ -1,3 +1,4 @@
+import { priorFactPayload, type PriorFactDraft } from './prior-fact-data.ts'
 import { businessDate } from './business-date.ts'
 import type { VouPayloadFor } from '@zerp/model'
 import type { SourceLineChoice } from './SourceLinePicker.vue'
@@ -6,6 +7,7 @@ import type { FormFields } from '../dynamic-fields/form-fields.ts'
 export type FulfillmentEntity =
   'purchase-inbound' | 'sale-return' | 'purchase-return'
 export type FulfillmentDraft = {
+  priorFact?: PriorFactDraft | null
   entity: FulfillmentEntity
   businessDate: string
   currency: string
@@ -17,6 +19,7 @@ export type FulfillmentDraft = {
   lines: {
     id: string
     source: SourceLineChoice | null
+    priorAmount?: string
     baseQuantity: string
     remark: string
   }[]
@@ -55,6 +58,7 @@ export function fulfillmentPayload(
       throw new Error(`第 ${index + 1} 行：填写正数基准数量，最多六位小数。`)
     return {
       source: line.source,
+      ...(draft.priorFact ? { priorAmount: line.priorAmount ?? '' } : {}),
       baseQuantity: line.baseQuantity,
       remark: line.remark,
     }
@@ -69,6 +73,9 @@ export function fulfillmentPayload(
   )
     throw new Error('来源行必须属于同一根订单，请显式移除不匹配的行。')
   const base = {
+    ...(draft.entity !== 'sale-return' && draft.priorFact
+      ? { priorFact: priorFactPayload(draft.priorFact) }
+      : {}),
     businessDate: draft.businessDate,
     currency: draft.currency,
     remark: draft.remark,
@@ -125,7 +132,10 @@ export function fulfillmentPayload(
 
 export function cloneFulfillment(
   entity: FulfillmentEntity,
-  payload: VouPayloadFor<FulfillmentEntity>,
+  payload: Exclude<
+    VouPayloadFor<FulfillmentEntity>,
+    { productLines: readonly unknown[] }
+  >,
   lineIds: readonly string[],
 ): FulfillmentDraft {
   const supplier = 'supplier' in payload ? payload.supplier : null
@@ -159,7 +169,8 @@ export function cloneFulfillment(
       remark: line.remark ?? '',
       source:
         (payload.parentEntity === 'sale-order' ||
-          payload.parentEntity === 'purchase-order') &&
+          payload.parentEntity === 'purchase-order' ||
+          payload.parentEntity === 'purchase-inbound') &&
         payload.parentDocumentId
           ? {
               rootEntity: payload.parentEntity,

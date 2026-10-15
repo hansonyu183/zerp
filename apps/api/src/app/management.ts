@@ -1,4 +1,17 @@
-import { customerScopeRank, type CustomerScope } from '@zerp/model'
+import {
+  customerScopeRank,
+  isPurchaseInboundPermission,
+  purchaseInboundScopeCovers,
+  purchaseInboundScopeValues,
+  type CustomerScope,
+  type PurchaseInboundScope,
+  type PurchaseInboundScopes,
+  type ServiceContexts,
+  type ServiceContext,
+  servicePermissionContexts,
+} from '@zerp/model'
+import { serviceAccess } from './service-access.ts'
+import { purchaseInboundAccess } from './purchase-inbound-access.ts'
 import { customerAccess } from './customer-access.ts'
 import { randomBytes } from 'node:crypto'
 
@@ -539,6 +552,8 @@ export class ManagementService {
       description?: string | null
       customerScope?: CustomerScope
       permissionIds: string[]
+      purchaseInboundScopes: PurchaseInboundScopes
+      serviceContexts?: ServiceContexts
     },
     principal: Principal,
     requestId: string,
@@ -551,7 +566,13 @@ export class ManagementService {
     return this.db.transaction().execute(async (tx) => {
       await this.lock(tx)
       await this.assertCurrentActor(tx, principal)
-      await this.assertPermissionSet(tx, permissionIds, principal)
+      const grants = await this.assertPermissionSet(
+        tx,
+        permissionIds,
+        input.purchaseInboundScopes,
+        input.serviceContexts,
+        principal,
+      )
       await this.assertCustomerScope(
         tx,
         input.customerScope ?? 'NONE',
@@ -588,12 +609,7 @@ export class ManagementService {
           updated_by: principal.user.id,
         })
         .execute()
-      await this.replaceRolePermissions(
-        tx,
-        id,
-        permissionIds,
-        principal.user.id,
-      )
+      await this.replaceRolePermissions(tx, id, grants, principal.user.id)
       await this.audit(
         tx,
         'ROLE_CREATE',
@@ -619,6 +635,8 @@ export class ManagementService {
       description?: string | null
       customerScope?: CustomerScope
       permissionIds: string[]
+      purchaseInboundScopes: PurchaseInboundScopes
+      serviceContexts?: ServiceContexts
       revision: string
     },
     principal: Principal,
@@ -643,7 +661,13 @@ export class ManagementService {
         throw new AppServiceError('role_changed', 'role revision conflict')
       if (!(await this.roleManageable(role, principal, tx)))
         throw new AppServiceError('forbidden', 'role cannot be maintained')
-      await this.assertPermissionSet(tx, permissionIds, principal)
+      const grants = await this.assertPermissionSet(
+        tx,
+        permissionIds,
+        input.purchaseInboundScopes,
+        input.serviceContexts,
+        principal,
+      )
       await this.assertCustomerScope(
         tx,
         input.customerScope ?? 'NONE',
@@ -675,13 +699,9 @@ export class ManagementService {
         .executeTakeFirst()
       if (Number(updated.numUpdatedRows) !== 1)
         throw new AppServiceError('role_changed', 'role revision conflict')
-      await this.replaceRolePermissions(
-        tx,
-        role.id,
-        permissionIds,
-        principal.user.id,
-      )
+      await this.replaceRolePermissions(tx, role.id, grants, principal.user.id)
       await this.ensureAuthorizationSafety(tx)
+      await this.revokeRoleSessions(tx, role.id, 'role_changed')
       await this.audit(
         tx,
         'ROLE_SAVE',
@@ -768,6 +788,11 @@ export class ManagementService {
           },
           afterWrite: async () => {
             await this.ensureAuthorizationSafety(tx)
+            await this.revokeRoleSessions(
+              tx,
+              input.id,
+              'role_enablement_changed',
+            )
           },
         },
       )
@@ -1200,6 +1225,12 @@ export class ManagementService {
     ])
     const targetAccess = await customerAccess(tx, { id })
     const actorAccess = await customerAccess(tx, { id: principal.user.id })
+    const targetScopes = await purchaseInboundAccess(tx, { id }, true)
+    const actorScopes = await purchaseInboundAccess(tx, {
+      id: principal.user.id,
+    })
+    const targetService = await serviceAccess(tx, { id }, true)
+    const actorService = await serviceAccess(tx, { id: principal.user.id })
     return (
       actorSuperadmin ||
       ((targetAccess.scope !== 'OWN' ||
@@ -1208,7 +1239,19 @@ export class ManagementService {
         customerScopeRank(targetAccess.scope) <=
           customerScopeRank(actorAccess.scope) &&
         !targetSuperadmin &&
-        target.every((path) => principal.apiPaths.includes(path)))
+        target.every(
+          (path) =>
+            principal.apiPaths.includes(path) &&
+            (!isPurchaseInboundPermission(path) ||
+              purchaseInboundScopeCovers(
+                actorScopes[path],
+                targetScopes[path],
+              )) &&
+            (!servicePermissionContexts(path).length ||
+              targetService[path]?.every((context) =>
+                actorService[path]?.includes(context),
+              )),
+        ))
     )
   }
   private async userAvailableActions(
@@ -1260,6 +1303,8 @@ export class ManagementService {
         'p.entity',
         'p.action',
         'p.description',
+        'rp.purchase_inbound_scope as purchaseInboundScope',
+        'rp.service_contexts as serviceContexts',
       ])
       .where('rp.role_id', '=', roleId)
       .$if(!includeDisabled, (qb) => qb.where('p.status', '=', 'ENABLED'))
@@ -1287,9 +1332,7 @@ export class ManagementService {
       !selfHeld &&
       (actorSuperadmin ||
         ((await this.roleScopeAssignable(tx, role.id, principal)) &&
-          permissions.every((permission) =>
-            principal.apiPaths.includes(permission.path),
-          )))
+          (await this.permissionsAssignable(tx, principal, permissions))))
     )
   }
   private async roleAssignable(
@@ -1303,8 +1346,36 @@ export class ManagementService {
     if (actorSuperadmin) return true
     if (!(await this.roleScopeAssignable(tx, role.id, principal))) return false
     const permissions = await this.rolePermissions(tx, role.id)
-    return permissions.every((permission) =>
-      principal.apiPaths.includes(permission.path),
+    return this.permissionsAssignable(tx, principal, permissions)
+  }
+  private async permissionsAssignable(
+    tx: AnyDb,
+    principal: Principal,
+    permissions: readonly {
+      path: string
+      purchaseInboundScope: string
+      serviceContexts: string[]
+    }[],
+  ) {
+    const scopes = await purchaseInboundAccess(tx, { id: principal.user.id })
+    const contexts = await serviceAccess(tx, { id: principal.user.id })
+    return permissions.every(
+      (permission) =>
+        principal.apiPaths.includes(permission.path) &&
+        (!isPurchaseInboundPermission(permission.path) ||
+          purchaseInboundScopeCovers(
+            scopes[permission.path],
+            permission.purchaseInboundScope as PurchaseInboundScope,
+          )) &&
+        (!servicePermissionContexts(permission.path).length ||
+          (permission.serviceContexts.length > 0 &&
+            permission.serviceContexts.every(
+              (context) =>
+                servicePermissionContexts(permission.path).includes(
+                  context as ServiceContext,
+                ) &&
+                contexts[permission.path]?.includes(context as ServiceContext),
+            ))),
     )
   }
   private async assertEmployeeDelegation(
@@ -1415,6 +1486,8 @@ export class ManagementService {
   private async assertPermissionSet(
     tx: AnyDb,
     ids: string[],
+    scopes: PurchaseInboundScopes,
+    serviceContexts: ServiceContexts | undefined,
     principal: Principal,
   ) {
     const permissions = await tx
@@ -1430,6 +1503,72 @@ export class ManagementService {
         'validation_failed',
         'one or more permissions do not exist or are disabled',
       )
+    const inbound = permissions.filter((permission) =>
+      isPurchaseInboundPermission(permission.path),
+    )
+    if (
+      !scopes ||
+      Object.keys(scopes).length !== inbound.length ||
+      inbound.some(
+        (permission) =>
+          !purchaseInboundScopeValues.includes(scopes[permission.id]),
+      )
+    )
+      throw new AppServiceError(
+        'validation_failed',
+        'exact purchase inbound grant scopes required',
+      )
+    const currentScopes = await purchaseInboundAccess(tx, {
+      id: principal.user.id,
+    })
+    const servicePermissions = permissions.filter(
+      (permission) => servicePermissionContexts(permission.path).length,
+    )
+    const requestedContexts = serviceContexts ?? {}
+    if (
+      Object.keys(requestedContexts).length !== servicePermissions.length ||
+      servicePermissions.some((permission) => {
+        const contexts = requestedContexts[permission.id]
+        const allowed = servicePermissionContexts(permission.path)
+        return (
+          !contexts?.length ||
+          new Set(contexts).size !== contexts.length ||
+          contexts.some((context) => !allowed.includes(context))
+        )
+      })
+    )
+      throw new AppServiceError(
+        'validation_failed',
+        'exact service action contexts required',
+      )
+    const currentServiceContexts = await serviceAccess(tx, {
+      id: principal.user.id,
+    })
+    if (
+      servicePermissions.some((permission) =>
+        requestedContexts[permission.id].some(
+          (context) =>
+            !currentServiceContexts[permission.path]?.includes(context),
+        ),
+      )
+    )
+      throw new AppServiceError(
+        'forbidden',
+        'service contexts exceed authorization ceiling',
+      )
+    if (
+      inbound.some(
+        (permission) =>
+          !purchaseInboundScopeCovers(
+            currentScopes[permission.path],
+            scopes[permission.id],
+          ),
+      )
+    )
+      throw new AppServiceError(
+        'forbidden',
+        'purchase inbound scope exceeds authorization ceiling',
+      )
     const actorSuperadmin = await this.isSuperadmin(tx, principal.user.id)
     if (
       !actorSuperadmin &&
@@ -1441,6 +1580,15 @@ export class ManagementService {
         'forbidden',
         'requested permissions exceed authorization ceiling',
       )
+    return permissions.map((permission) => ({
+      permissionId: permission.id,
+      scope: isPurchaseInboundPermission(permission.path)
+        ? scopes[permission.id]
+        : ('ALL' as PurchaseInboundScope),
+      serviceContexts: [
+        ...(requestedContexts[permission.id] ?? []),
+      ] as ServiceContext[],
+    }))
   }
   private async replaceUserRoles(
     tx: AnyDb,
@@ -1472,7 +1620,11 @@ export class ManagementService {
   private async replaceRolePermissions(
     tx: AnyDb,
     roleId: string,
-    permissionIds: string[],
+    grants: readonly {
+      permissionId: string
+      scope: PurchaseInboundScope
+      serviceContexts: ServiceContext[]
+    }[],
     actorId: string,
   ) {
     await tx
@@ -1482,12 +1634,29 @@ export class ManagementService {
     await tx
       .insertInto('app_role_permissions')
       .values(
-        permissionIds.map((permissionId) => ({
+        grants.map((grant) => ({
           role_id: roleId,
-          permission_id: permissionId,
+          permission_id: grant.permissionId,
+          purchase_inbound_scope: grant.scope,
+          service_contexts: grant.serviceContexts,
           created_by: actorId,
         })),
       )
+      .execute()
+  }
+  private async revokeRoleSessions(tx: AnyDb, roleId: string, reason: string) {
+    await tx
+      .updateTable('app_sessions')
+      .set({ revoked_at: new Date(), revoked_reason: reason })
+      .where(
+        'user_id',
+        'in',
+        tx
+          .selectFrom('app_user_roles')
+          .select('user_id')
+          .where('role_id', '=', roleId),
+      )
+      .where('revoked_at', 'is', null)
       .execute()
   }
   private async revokeUserSessions(tx: AnyDb, userId: string, reason: string) {
@@ -1652,13 +1821,10 @@ export class ManagementService {
     principal: Principal,
     tx: AnyDb = this.db,
   ) {
-    return {
-      ...(await this.roleListItem(role, principal, tx)),
-      createdAt: role.created_at.toISOString(),
-      updatedAt: role.updated_at.toISOString(),
-      permissions:
-        role.code === superadminCode
-          ? await tx
+    const permissions =
+      role.code === superadminCode
+        ? (
+            await tx
               .selectFrom('app_permissions')
               .select([
                 'id',
@@ -1672,9 +1838,41 @@ export class ManagementService {
               .where('status', '=', 'ENABLED')
               .orderBy('path', 'asc')
               .execute()
-          : await this.rolePermissions(tx, role.id, true),
+          ).map((permission) => ({
+            ...permission,
+            purchaseInboundScope: 'ALL' as PurchaseInboundScope,
+            serviceContexts: [...servicePermissionContexts(permission.path)],
+          }))
+        : await this.rolePermissions(tx, role.id, true)
+    return {
+      ...(await this.roleListItem(role, principal, tx)),
+      createdAt: role.created_at.toISOString(),
+      updatedAt: role.updated_at.toISOString(),
+      purchaseInboundScopes: Object.fromEntries(
+        permissions
+          .filter((permission) => isPurchaseInboundPermission(permission.path))
+          .map((permission) => [
+            permission.id,
+            permission.purchaseInboundScope,
+          ]),
+      ),
+      serviceContexts: Object.fromEntries(
+        permissions
+          .filter(
+            (permission) => servicePermissionContexts(permission.path).length,
+          )
+          .map((permission) => [permission.id, permission.serviceContexts]),
+      ),
+      permissions: permissions.map(
+        ({
+          purchaseInboundScope: _scope,
+          serviceContexts: _contexts,
+          ...permission
+        }) => permission,
+      ),
     }
   }
+
   private async directRoleCount(permissionId: string) {
     const row = await this.db
       .selectFrom('app_role_permissions')

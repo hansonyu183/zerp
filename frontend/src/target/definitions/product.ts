@@ -15,7 +15,7 @@ export const productPage = defineVersionPage<'bob/product'>({
   ],
   adapter: {
     empty: emptyProduct,
-    clone: (snapshot) => structuredClone(snapshot),
+    clone: (snapshot) => ({ ...structuredClone(snapshot), attachments: [] }),
     validate: validateProduct,
     query: (token, input) =>
       api.queryTargetProducts(token, {
